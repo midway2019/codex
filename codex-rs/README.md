@@ -60,7 +60,7 @@ To test to see what happens when a command is run under the sandbox provided by 
 ```
 # Uses the sandbox implementation for the current host OS:
 # Seatbelt on macOS, the Linux sandbox on Linux, and Windows restricted token on Windows.
-codex sandbox [COMMAND]...
+codex sandbox [--allow-mach-service SERVICE]... [--allow-appleevent-destination BUNDLE_ID]... [--allow-lsopen] [COMMAND]...
 
 # macOS-only diagnostic option
 codex sandbox --log-denials [COMMAND]...
@@ -69,6 +69,12 @@ codex sandbox --log-denials [COMMAND]...
 `codex sandbox` also accepts `--profile NAME` (`-p NAME`) to layer
 `$CODEX_HOME/NAME.config.toml` onto the base user config for the sandboxed
 command.
+
+On macOS, `codex sandbox macos` also supports targeted sandbox exceptions for local debugging:
+
+- `--allow-mach-service SERVICE` adds `mach-lookup` permission for a specific global service name.
+- `--allow-appleevent-destination BUNDLE_ID` allows AppleEvent delivery to that destination bundle ID and includes the standard AppleEvents daemon lookup used by system profiles.
+- `--allow-lsopen` allows LaunchServices open APIs.
 
 ### Selecting a sandbox policy via `--sandbox`
 
