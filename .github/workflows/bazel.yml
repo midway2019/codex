@@ -20,8 +20,8 @@ jobs:
   test:
     # PRs use the sharded Windows cross-compiled test jobs below. Post-merge
     # pushes to main also run the native Windows test job for broader Windows
-    # signal without putting PR latency back on the critical path. Cargo CI
-    # owns V8/code-mode test coverage for now.
+    # signal without putting PR latency back on the critical path. The
+    # Windows-cross shards exercise the source-built V8/code-mode targets.
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -91,9 +91,9 @@ jobs:
             # path. V8 consumers under `//codex-rs/...` still participate
             # transitively through `//...`.
             -//third_party/v8:all
-            # V8-backed code-mode tests are covered by Cargo CI. Bazel CI
-            # cross-compiles in several legs, and those tests are not stable in
-            # that setup yet.
+            # Keep V8-backed code-mode tests out of the ordinary macOS/Linux
+            # legs; the Windows-cross shards below exercise the source-built
+            # gnullvm V8 path.
             -//codex-rs/code-mode:code-mode-unit-tests
             -//codex-rs/v8-poc:v8-poc-unit-tests
           )
@@ -183,7 +183,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          bazel_test_query='tests(//...) except tests(//third_party/v8:all) except //codex-rs/code-mode:code-mode-unit-tests except //codex-rs/v8-poc:v8-poc-unit-tests except attr(tags, "manual", tests(//...))'
+          # This is the Windows gnullvm coverage for the source-built V8
+          # runtime; keep code-mode and v8-poc tests in this target set.
+          bazel_test_query='tests(//...) except tests(//third_party/v8:all) except attr(tags, "manual", tests(//...))'
           mapfile -t bazel_targets < <(
             MSYS2_ARG_CONV_EXCL='*' bazel query --output=label "${bazel_test_query}" \
               | LC_ALL=C sort
@@ -191,11 +193,21 @@ jobs:
 
           selected_targets=()
           for bazel_target in "${bazel_targets[@]}"; do
-            target_bucket="$(
-              printf '%s\n' "${bazel_target}" \
-                | cksum \
-                | awk -v shard_count="${BAZEL_TEST_SHARD_COUNT}" '{ print ($1 % shard_count) + 1 }'
-            )"
+            case "${bazel_target}" in
+              //codex-rs/code-mode:code-mode-unit-tests | //codex-rs/v8-poc:v8-poc-unit-tests)
+                # Keep direct V8 coverage with core-all-test-windows-cross,
+                # which exercises code-mode on shard 1, so one Windows
+                # runner generates the local V8 snapshot for this coverage.
+                target_bucket=1
+                ;;
+              *)
+                target_bucket="$(
+                  printf '%s\n' "${bazel_target}" \
+                    | cksum \
+                    | awk -v shard_count="${BAZEL_TEST_SHARD_COUNT}" '{ print ($1 % shard_count) + 1 }'
+                )"
+                ;;
+            esac
             if [[ "${target_bucket}" == "${BAZEL_TEST_SHARD}" ]]; then
               selected_targets+=("${bazel_target}")
             fi
@@ -289,9 +301,8 @@ jobs:
             # path. V8 consumers under `//codex-rs/...` still participate
             # transitively through `//...`.
             -//third_party/v8:all
-            # Keep this aligned with the main Bazel job. The native Windows
-            # job preserves broad post-merge coverage, but code-mode/V8 tests
-            # are covered by Cargo CI rather than Bazel for now.
+            # Keep this job broad and cheap; the sharded Windows-cross job
+            # exercises the V8-backed code-mode tests on every PR.
             -//codex-rs/code-mode:code-mode-unit-tests
             -//codex-rs/v8-poc:v8-poc-unit-tests
           )
