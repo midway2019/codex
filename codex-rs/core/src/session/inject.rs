@@ -4,6 +4,7 @@ use super::turn_context::TurnContext;
 use crate::state::ActiveTurn;
 use crate::state::TurnState;
 use crate::tasks::RegularTask;
+use codex_protocol::error::Result as CodexResult;
 use codex_protocol::models::ResponseItem;
 use std::sync::Arc;
 
@@ -106,9 +107,9 @@ impl Session {
         &self,
         items: Vec<ResponseItem>,
         current_turn_context: Option<&TurnContext>,
-    ) {
+    ) -> CodexResult<()> {
         let Err(items) = self.inject_if_running(items).await else {
-            return;
+            return Ok(());
         };
         let default_turn_context;
         let turn_context = match current_turn_context {
@@ -118,6 +119,6 @@ impl Session {
                 default_turn_context.as_ref()
             }
         };
-        self.record_conversation_items(turn_context, &items).await;
+        self.record_conversation_items(turn_context, &items).await
     }
 }

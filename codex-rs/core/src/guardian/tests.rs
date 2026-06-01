@@ -194,7 +194,10 @@ async fn guardian_test_session_and_turn_with_base_url(
     (Arc::new(session), Arc::new(turn))
 }
 
-async fn seed_guardian_parent_history(session: &Arc<Session>, turn: &Arc<TurnContext>) {
+async fn seed_guardian_parent_history(
+    session: &Arc<Session>,
+    turn: &Arc<TurnContext>,
+) -> anyhow::Result<()> {
     session
         .record_conversation_items(
             turn.as_ref(),
@@ -232,7 +235,8 @@ async fn seed_guardian_parent_history(session: &Arc<Session>, turn: &Arc<TurnCon
                 },
             ],
         )
-        .await;
+        .await?;
+    Ok(())
 }
 
 fn rollout_item_contains_message_text(item: &RolloutItem, needle: &str) -> bool {
@@ -334,7 +338,7 @@ fn build_guardian_transcript_keeps_original_numbering() {
 #[tokio::test(flavor = "current_thread")]
 async fn build_guardian_prompt_full_mode_preserves_initial_review_format() -> anyhow::Result<()> {
     let (session, turn) = guardian_test_session_and_turn_with_base_url("http://localhost").await;
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
 
     let prompt = build_guardian_prompt_items(
         session.as_ref(),
@@ -393,7 +397,7 @@ async fn build_guardian_prompt_includes_parent_turn_denied_reads() -> anyhow::Re
     );
     let session = Arc::new(session);
     let turn = Arc::new(turn);
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
 
     let prompt = build_guardian_prompt_items_with_parent_turn(
         session.as_ref(),
@@ -423,7 +427,7 @@ async fn build_guardian_prompt_includes_parent_turn_denied_reads() -> anyhow::Re
 #[tokio::test(flavor = "current_thread")]
 async fn build_guardian_prompt_delta_mode_preserves_original_numbering() -> anyhow::Result<()> {
     let (session, turn) = guardian_test_session_and_turn_with_base_url("http://localhost").await;
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
     session
         .record_conversation_items(
             turn.as_ref(),
@@ -446,7 +450,7 @@ async fn build_guardian_prompt_delta_mode_preserves_original_numbering() -> anyh
                 },
             ],
         )
-        .await;
+        .await?;
 
     let prompt = build_guardian_prompt_items(
         session.as_ref(),
@@ -484,7 +488,7 @@ async fn build_guardian_prompt_delta_mode_preserves_original_numbering() -> anyh
 #[tokio::test(flavor = "current_thread")]
 async fn build_guardian_prompt_delta_mode_handles_empty_delta() -> anyhow::Result<()> {
     let (session, turn) = guardian_test_session_and_turn_with_base_url("http://localhost").await;
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
 
     let prompt = build_guardian_prompt_items(
         session.as_ref(),
@@ -519,7 +523,7 @@ async fn build_guardian_prompt_delta_mode_handles_empty_delta() -> anyhow::Resul
 async fn build_guardian_prompt_stale_delta_cursor_falls_back_to_full_prompt() -> anyhow::Result<()>
 {
     let (session, turn) = guardian_test_session_and_turn_with_base_url("http://localhost").await;
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
 
     let prompt = build_guardian_prompt_items(
         session.as_ref(),
@@ -554,7 +558,7 @@ async fn build_guardian_prompt_stale_delta_cursor_falls_back_to_full_prompt() ->
 async fn build_guardian_prompt_stale_delta_version_falls_back_to_full_prompt() -> anyhow::Result<()>
 {
     let (session, turn) = guardian_test_session_and_turn_with_base_url("http://localhost").await;
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
     session
         .replace_history(
             vec![
@@ -600,7 +604,7 @@ async fn build_guardian_prompt_stale_delta_version_falls_back_to_full_prompt() -
                 },
             ],
         )
-        .await;
+        .await?;
 
     let prompt = build_guardian_prompt_items(
         session.as_ref(),
@@ -890,7 +894,7 @@ fn guardian_approval_request_to_json_renders_network_access_trigger() -> serde_j
 #[tokio::test(flavor = "current_thread")]
 async fn build_guardian_prompt_items_explains_network_access_review_scope() -> anyhow::Result<()> {
     let (session, turn) = guardian_test_session_and_turn_with_base_url("http://localhost").await;
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
     let cwd = test_path_buf("/repo").abs();
 
     let prompt = build_guardian_prompt_items(
@@ -1327,7 +1331,7 @@ async fn guardian_request_model_for_auto_review_override(
         .auto_review_model_override = auto_review_model_override;
     let parent_model = turn.model_info.slug.clone();
     let preferred_model = turn.provider.approval_review_preferred_model().to_string();
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
 
     let outcome = run_guardian_review_session_for_test(
         Arc::clone(&session),
@@ -1431,7 +1435,7 @@ async fn guardian_review_request_layout_matches_model_visible_request_snapshot()
     turn.provider = create_model_provider(config.model_provider.clone(), turn.auth_manager.clone());
     let session = Arc::new(session);
     let turn = Arc::new(turn);
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
 
     let request = GuardianApprovalRequest::Shell {
         id: "shell-1".to_string(),
@@ -1615,7 +1619,7 @@ async fn guardian_reuses_prompt_cache_key_and_appends_prior_reviews() -> anyhow:
     .await;
 
     let (session, turn) = guardian_test_session_and_turn(&server).await;
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
 
     let first_request = GuardianApprovalRequest::Shell {
         id: "shell-1".to_string(),
@@ -1656,7 +1660,7 @@ async fn guardian_reuses_prompt_cache_key_and_appends_prior_reviews() -> anyhow:
                 },
             ],
         )
-        .await;
+        .await?;
     let second_request = GuardianApprovalRequest::Shell {
         id: "shell-2".to_string(),
         command: vec![
@@ -1700,7 +1704,7 @@ async fn guardian_reuses_prompt_cache_key_and_appends_prior_reviews() -> anyhow:
                 },
             ],
         )
-        .await;
+        .await?;
     let third_request = GuardianApprovalRequest::Shell {
         id: "shell-3".to_string(),
         command: vec!["git".to_string(), "push".to_string()],
@@ -2011,7 +2015,7 @@ async fn guardian_review_surfaces_responses_api_errors_in_rejection_reason() -> 
         create_model_provider(config.model_provider.clone(), turn_mut.auth_manager.clone());
     turn_mut.user_instructions = None;
 
-    seed_guardian_parent_history(&session, &turn).await;
+    seed_guardian_parent_history(&session, &turn).await?;
 
     let decision = review_approval_request(
         &session,
@@ -2149,7 +2153,7 @@ async fn guardian_parallel_reviews_fork_from_last_committed_trunk_history() -> a
         .await;
 
         let (session, turn) = guardian_test_session_and_turn_with_base_url(server.uri()).await;
-        seed_guardian_parent_history(&session, &turn).await;
+        seed_guardian_parent_history(&session, &turn).await?;
 
         let initial_request = GuardianApprovalRequest::Shell {
             id: "shell-guardian-1".to_string(),
@@ -2192,7 +2196,7 @@ async fn guardian_parallel_reviews_fork_from_last_committed_trunk_history() -> a
                     },
                 ],
             )
-            .await;
+            .await?;
 
         let second_request = GuardianApprovalRequest::Shell {
             id: "shell-guardian-2".to_string(),
@@ -2259,7 +2263,7 @@ async fn guardian_parallel_reviews_fork_from_last_committed_trunk_history() -> a
                     },
                 ],
             )
-            .await;
+            .await?;
 
         let third_decision = review_approval_request(
             &session,

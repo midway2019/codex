@@ -1036,6 +1036,7 @@ impl Session {
                     config.model_verbosity,
                     config.features.enabled(Feature::EnableRequestCompression),
                     config.features.enabled(Feature::RuntimeMetrics),
+                    config.features.enabled(Feature::ResponsesApiCodexStrictMode),
                     Self::build_model_client_beta_features_header(config.as_ref()),
                     attestation_provider,
                 )

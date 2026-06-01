@@ -635,7 +635,8 @@ async fn spawn_agent_can_fork_parent_thread_history_with_sanitized_items() {
                 spawn_agent_call(&parent_spawn_call_id),
             ],
         )
-        .await;
+        .await
+        .expect("record conversation items");
     let parent_reference_context_item = turn_context.to_turn_context_item();
     parent_thread
         .codex
@@ -935,7 +936,8 @@ async fn spawn_agent_fork_flushes_parent_rollout_before_loading_history() {
                 spawn_agent_call(&parent_spawn_call_id),
             ],
         )
-        .await;
+        .await
+        .expect("record conversation items");
 
     let child_thread_id = harness
         .control
@@ -1004,7 +1006,8 @@ async fn spawn_agent_fork_last_n_turns_keeps_only_recent_turns() {
             queued_turn_context.as_ref(),
             &[queued_communication.to_response_input_item().into()],
         )
-        .await;
+        .await
+        .expect("record conversation items");
 
     let triggered_communication = InterAgentCommunication::new(
         AgentPath::root(),
@@ -1021,7 +1024,8 @@ async fn spawn_agent_fork_last_n_turns_keeps_only_recent_turns() {
             triggered_turn_context.as_ref(),
             &[triggered_communication.to_response_input_item().into()],
         )
-        .await;
+        .await
+        .expect("record conversation items");
     parent_thread
         .inject_user_message_without_turn("current parent task".to_string())
         .await;
@@ -1034,7 +1038,8 @@ async fn spawn_agent_fork_last_n_turns_keeps_only_recent_turns() {
             spawn_turn_context.as_ref(),
             &[spawn_agent_call(&parent_spawn_call_id)],
         )
-        .await;
+        .await
+        .expect("record conversation items");
     parent_thread
         .codex
         .session
@@ -1139,7 +1144,8 @@ async fn spawn_agent_fork_last_n_turns_drops_parent_startup_prefix_when_under_li
                 phase: None,
             }],
         )
-        .await;
+        .await
+        .expect("record conversation items");
     parent_thread
         .inject_user_message_without_turn("current parent task".to_string())
         .await;
@@ -1152,7 +1158,8 @@ async fn spawn_agent_fork_last_n_turns_drops_parent_startup_prefix_when_under_li
             spawn_turn_context.as_ref(),
             &[spawn_agent_call(&parent_spawn_call_id)],
         )
-        .await;
+        .await
+        .expect("record conversation items");
     parent_thread
         .codex
         .session
@@ -1262,7 +1269,8 @@ async fn spawn_agent_fork_last_n_turns_strips_parent_usage_hints() {
                 spawn_agent_call(&parent_spawn_call_id),
             ],
         )
-        .await;
+        .await
+        .expect("record conversation items");
     parent_thread
         .codex
         .session

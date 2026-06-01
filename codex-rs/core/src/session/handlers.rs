@@ -922,8 +922,12 @@ Approved action:
         phase: None,
     })];
 
-    sess.inject_no_new_turn(items, /*current_turn_context*/ None)
-        .await;
+    if let Err(err) = sess
+        .inject_no_new_turn(items, /*current_turn_context*/ None)
+        .await
+    {
+        warn!("failed to inject approved Guardian action message: {err:#}");
+    }
 }
 
 pub(super) fn submission_dispatch_span(sub: &Submission) -> tracing::Span {

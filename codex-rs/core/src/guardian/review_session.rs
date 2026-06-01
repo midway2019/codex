@@ -793,7 +793,8 @@ async fn append_guardian_followup_reminder(review_session: &GuardianReviewSessio
         .codex
         .session
         .inject_no_new_turn(vec![reminder], /*current_turn_context*/ None)
-        .await;
+        .await
+        .unwrap_or_else(|err| warn!("failed to inject guardian follow-up reminder: {err:#}"));
 }
 
 async fn load_rollout_items_for_fork(

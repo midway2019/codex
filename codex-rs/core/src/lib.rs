@@ -13,6 +13,7 @@ mod realtime_context;
 mod realtime_conversation;
 mod realtime_prompt;
 mod responses_retry;
+mod responses_strict_images;
 pub(crate) mod session;
 pub use session::SteerInputError;
 mod codex_thread;

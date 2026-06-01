@@ -23,6 +23,7 @@ use codex_analytics::CompactionStatus;
 use codex_analytics::CompactionStrategy;
 use codex_analytics::CompactionTrigger;
 use codex_analytics::now_unix_seconds;
+use codex_features::Feature;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CodexResult;
 use codex_protocol::items::ContextCompactionItem;
@@ -30,6 +31,7 @@ use codex_protocol::items::TurnItem;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
+use codex_protocol::models::response_input_item_from_user_input_with_responses_codex_strict_mode;
 use codex_protocol::protocol::CompactedItem;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::TurnStartedEvent;
@@ -182,11 +184,24 @@ async fn run_compact_task_inner_impl(
     let compaction_item = TurnItem::ContextCompaction(ContextCompactionItem::new());
     sess.emit_turn_item_started(&turn_context, &compaction_item)
         .await;
-    let initial_input_for_turn: ResponseInputItem = ResponseInputItem::from(input);
+    let initial_input_for_turn: ResponseInputItem = if turn_context
+        .features
+        .get()
+        .enabled(Feature::ResponsesApiCodexStrictMode)
+    {
+        response_input_item_from_user_input_with_responses_codex_strict_mode(input)
+    } else {
+        ResponseInputItem::from(input)
+    };
+    let initial_response_item = ResponseItem::from(initial_input_for_turn);
+    let prepared_initial_response_item = sess.prepare_conversation_items_for_history(
+        turn_context.as_ref(),
+        std::slice::from_ref(&initial_response_item),
+    )?;
 
     let mut history = sess.clone_history().await;
     history.record_items(
-        &[initial_input_for_turn.into()],
+        prepared_initial_response_item.as_ref(),
         turn_context.truncation_policy,
     );
 
@@ -571,7 +586,7 @@ async fn drain_to_completed(
         match event {
             Ok(ResponseEvent::OutputItemDone(item)) => {
                 sess.record_conversation_items(turn_context, std::slice::from_ref(&item))
-                    .await;
+                    .await?;
             }
             Ok(ResponseEvent::ServerReasoningIncluded(included)) => {
                 sess.set_server_reasoning_included(included).await;

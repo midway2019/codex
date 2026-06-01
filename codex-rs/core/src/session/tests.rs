@@ -442,6 +442,7 @@ fn test_model_client_session() -> crate::client::ModelClientSession {
         /*model_verbosity*/ None,
         /*enable_request_compression*/ false,
         /*include_timing_metrics*/ false,
+        /*responses_api_codex_strict_mode_enabled*/ false,
         /*beta_features_header*/ None,
         /*attestation_provider*/ None,
     )
@@ -1760,14 +1761,16 @@ async fn resumed_history_injects_initial_context_on_first_context_update_only() 
 
     session
         .record_context_updates_and_set_reference_context_item(&turn_context)
-        .await;
+        .await
+        .expect("record context updates");
     expected.extend(session.build_initial_context(&turn_context).await);
     let history_after_seed = session.clone_history().await;
     assert_eq!(expected, history_after_seed.raw_items());
 
     session
         .record_context_updates_and_set_reference_context_item(&turn_context)
-        .await;
+        .await
+        .expect("record context updates");
     let history_after_second_seed = session.clone_history().await;
     assert_eq!(
         history_after_seed.raw_items(),
@@ -1865,7 +1868,8 @@ async fn recompute_token_usage_uses_session_base_instructions() {
     let item = user_message("hello");
     session
         .record_conversation_items(&turn_context, std::slice::from_ref(&item))
-        .await;
+        .await
+        .expect("record conversation items");
 
     let history = session.clone_history().await;
     let session_base_instructions = BaseInstructions {
@@ -2721,7 +2725,8 @@ async fn thread_rollback_fails_without_persisted_thread_history() {
 
     let initial_context = sess.build_initial_context(tc.as_ref()).await;
     sess.record_conversation_items(tc.as_ref(), &initial_context)
-        .await;
+        .await
+        .expect("record conversation items");
 
     handlers::thread_rollback(&sess, "sub-1".to_string(), /*num_turns*/ 1).await;
 
@@ -3101,7 +3106,8 @@ async fn thread_rollback_fails_when_turn_in_progress() {
 
     let initial_context = sess.build_initial_context(tc.as_ref()).await;
     sess.record_conversation_items(tc.as_ref(), &initial_context)
-        .await;
+        .await
+        .expect("record conversation items");
 
     *sess.active_turn.lock().await = Some(crate::state::ActiveTurn::default());
     handlers::thread_rollback(&sess, "sub-1".to_string(), /*num_turns*/ 1).await;
@@ -3122,7 +3128,8 @@ async fn thread_rollback_fails_when_num_turns_is_zero() {
 
     let initial_context = sess.build_initial_context(tc.as_ref()).await;
     sess.record_conversation_items(tc.as_ref(), &initial_context)
-        .await;
+        .await
+        .expect("record conversation items");
 
     handlers::thread_rollback(&sess, "sub-1".to_string(), /*num_turns*/ 0).await;
 
@@ -4775,6 +4782,9 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
             config.model_verbosity,
             config.features.enabled(Feature::EnableRequestCompression),
             config.features.enabled(Feature::RuntimeMetrics),
+            config
+                .features
+                .enabled(Feature::ResponsesApiCodexStrictMode),
             Session::build_model_client_beta_features_header(config.as_ref()),
             /*attestation_provider*/ None,
         ),
@@ -6865,6 +6875,9 @@ where
             config.model_verbosity,
             config.features.enabled(Feature::EnableRequestCompression),
             config.features.enabled(Feature::RuntimeMetrics),
+            config
+                .features
+                .enabled(Feature::ResponsesApiCodexStrictMode),
             Session::build_model_client_beta_features_header(config.as_ref()),
             /*attestation_provider*/ None,
         ),
@@ -7982,7 +7995,8 @@ async fn record_context_updates_and_set_reference_context_item_injects_full_cont
     let (session, turn_context) = make_session_and_context().await;
     session
         .record_context_updates_and_set_reference_context_item(&turn_context)
-        .await;
+        .await
+        .expect("record context updates");
     let history = session.clone_history().await;
     let initial_context = session.build_initial_context(&turn_context).await;
     assert_eq!(history.raw_items().to_vec(), initial_context);
@@ -8009,10 +8023,12 @@ async fn record_context_updates_and_set_reference_context_item_reinjects_full_co
     };
     session
         .record_conversation_items(&turn_context, std::slice::from_ref(&compacted_summary))
-        .await;
+        .await
+        .expect("record conversation items");
     session
         .record_context_updates_and_set_reference_context_item(&turn_context)
-        .await;
+        .await
+        .expect("record context updates");
     {
         let mut state = session.state.lock().await;
         state.set_reference_context_item(/*item*/ None);
@@ -8026,7 +8042,8 @@ async fn record_context_updates_and_set_reference_context_item_reinjects_full_co
 
     session
         .record_context_updates_and_set_reference_context_item(&turn_context)
-        .await;
+        .await
+        .expect("record context updates");
 
     let history = session.clone_history().await;
     let mut expected_history = vec![compacted_summary];
@@ -8060,7 +8077,8 @@ async fn record_context_updates_and_set_reference_context_item_persists_baseline
 
     session
         .record_context_updates_and_set_reference_context_item(&turn_context)
-        .await;
+        .await
+        .expect("record context updates");
 
     assert_eq!(
         session.clone_history().await.raw_items().to_vec(),
@@ -8107,7 +8125,8 @@ async fn record_context_updates_and_set_reference_context_item_persists_split_fi
 
     session
         .record_context_updates_and_set_reference_context_item(&turn_context)
-        .await;
+        .await
+        .expect("record context updates");
     session.ensure_rollout_materialized().await;
     session.flush_rollout().await.expect("rollout should flush");
 
@@ -8189,7 +8208,8 @@ async fn record_context_updates_and_set_reference_context_item_persists_full_rei
         .await;
     session
         .record_context_updates_and_set_reference_context_item(&turn_context)
-        .await;
+        .await
+        .expect("record context updates");
     session.ensure_rollout_materialized().await;
     session.flush_rollout().await.expect("rollout should flush");
 

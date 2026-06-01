@@ -2160,6 +2160,7 @@ async fn websocket_harness_with_provider_options(
         config.model_verbosity,
         /*enable_request_compression*/ false,
         runtime_metrics_enabled,
+        /*responses_api_codex_strict_mode_enabled*/ false,
         /*beta_features_header*/ None,
         /*attestation_provider*/ None,
     );

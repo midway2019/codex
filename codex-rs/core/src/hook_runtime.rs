@@ -21,6 +21,7 @@ use codex_hooks::UserPromptSubmitOutcome;
 use codex_hooks::UserPromptSubmitRequest;
 use codex_otel::HOOK_RUN_DURATION_METRIC;
 use codex_otel::HOOK_RUN_METRIC;
+use codex_protocol::error::Result as CodexResult;
 use codex_protocol::items::TurnItem;
 use codex_protocol::items::UserMessageItem;
 use codex_protocol::models::ResponseItem;
@@ -36,6 +37,7 @@ use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::SubAgentSource;
 use codex_thread_store::ReadThreadParams;
 use serde_json::Value;
+use tracing::warn;
 
 use crate::context::ContextualUserFragment;
 use crate::context::HookAdditionalContext;
@@ -190,7 +192,9 @@ pub(crate) async fn run_pre_tool_use_hooks(
         updated_input,
     } = hooks.run_pre_tool_use(request).await;
     emit_hook_completed_events(sess, turn_context, hook_events).await;
-    record_additional_contexts(sess, turn_context, additional_contexts).await;
+    if let Err(err) = record_additional_contexts(sess, turn_context, additional_contexts).await {
+        warn!("failed to record pre-tool hook additional context: {err:#}");
+    }
 
     if !should_block {
         return PreToolUseHookResult::Continue { updated_input };
@@ -534,7 +538,7 @@ pub(crate) async fn record_pending_input(
     turn_context: &Arc<TurnContext>,
     pending_input: TurnInput,
     additional_contexts: Vec<String>,
-) {
+) -> CodexResult<()> {
     match pending_input {
         TurnInput::UserInput { content, client_id } => {
             sess.record_user_prompt_and_emit_turn_item(
@@ -542,14 +546,15 @@ pub(crate) async fn record_pending_input(
                 content.as_slice(),
                 client_id,
             )
-            .await;
+            .await?;
         }
         TurnInput::ResponseItem(item) => {
             sess.record_conversation_items(turn_context, std::slice::from_ref(&item))
-                .await;
+                .await?;
         }
     }
-    record_additional_contexts(sess, turn_context, additional_contexts).await;
+    record_additional_contexts(sess, turn_context, additional_contexts).await?;
+    Ok(())
 }
 
 async fn run_context_injecting_hook<Fut, Outcome>(
@@ -575,7 +580,11 @@ impl HookRuntimeOutcome {
         sess: &Arc<Session>,
         turn_context: &Arc<TurnContext>,
     ) -> bool {
-        record_additional_contexts(sess, turn_context, self.additional_contexts).await;
+        if let Err(err) =
+            record_additional_contexts(sess, turn_context, self.additional_contexts).await
+        {
+            warn!("failed to record hook additional context: {err:#}");
+        }
 
         self.should_stop
     }
@@ -585,14 +594,14 @@ pub(crate) async fn record_additional_contexts(
     sess: &Arc<Session>,
     turn_context: &Arc<TurnContext>,
     additional_contexts: Vec<String>,
-) {
+) -> CodexResult<()> {
     let developer_messages = additional_context_messages(additional_contexts);
     if developer_messages.is_empty() {
-        return;
+        return Ok(());
     }
 
     sess.record_conversation_items(turn_context, developer_messages.as_slice())
-        .await;
+        .await
 }
 
 fn additional_context_messages(additional_contexts: Vec<String>) -> Vec<ResponseItem> {

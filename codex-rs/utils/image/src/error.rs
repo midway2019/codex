@@ -25,6 +25,8 @@ pub enum ImageProcessingError {
     },
     #[error("unsupported image `{mime}`")]
     UnsupportedImageFormat { mime: String },
+    #[error("invalid image data URL: {reason}")]
+    InvalidDataUrl { reason: String },
 }
 
 impl ImageProcessingError {

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -328,6 +329,7 @@ use codex_protocol::config_types::ReasoningSummary as ReasoningSummaryConfig;
 use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
+use codex_protocol::models::response_input_item_from_user_input_with_responses_codex_strict_mode;
 use codex_protocol::openai_models::ReasoningEffort as ReasoningEffortConfig;
 use codex_protocol::protocol::ApplyPatchApprovalRequestEvent;
 use codex_protocol::protocol::AskForApproval;
@@ -1897,8 +1899,12 @@ impl Session {
         let message: ResponseItem =
             ContextualUserFragment::into(ApprovedCommandPrefixSaved::new(prefixes));
         let turn_context = self.turn_context_for_sub_id(sub_id).await;
-        self.inject_no_new_turn(vec![message], turn_context.as_deref())
-            .await;
+        if let Err(err) = self
+            .inject_no_new_turn(vec![message], turn_context.as_deref())
+            .await
+        {
+            warn!("failed to record execpolicy amendment message: {err:#}");
+        }
     }
 
     pub(crate) async fn persist_network_policy_amendment(
@@ -1977,8 +1983,12 @@ impl Session {
     ) {
         let message: ResponseItem = ContextualUserFragment::into(NetworkRuleSaved::new(amendment));
         let turn_context = self.turn_context_for_sub_id(sub_id).await;
-        self.inject_no_new_turn(vec![message], turn_context.as_deref())
-            .await;
+        if let Err(err) = self
+            .inject_no_new_turn(vec![message], turn_context.as_deref())
+            .await
+        {
+            warn!("failed to record network policy amendment message: {err:#}");
+        }
     }
 
     /// Emit an exec approval request event and await the user's decision.
@@ -2561,17 +2571,41 @@ impl Session {
 
     /// Records conversation items: append to history, persist to rollout, and
     /// notify clients observing raw response items.
+    pub(crate) fn prepare_conversation_items_for_history<'a>(
+        &self,
+        turn_context: &TurnContext,
+        items: &'a [ResponseItem],
+    ) -> CodexResult<Cow<'a, [ResponseItem]>> {
+        if !turn_context
+            .features
+            .get()
+            .enabled(Feature::ResponsesApiCodexStrictMode)
+        {
+            return Ok(Cow::Borrowed(items));
+        }
+
+        let mut prepared_items = items.to_vec();
+        crate::responses_strict_images::prepare_response_items_for_responses_codex_strict_mode(
+            &mut prepared_items,
+        )
+        .map_err(|err| CodexErr::InvalidRequest(err.to_string()))?;
+        Ok(Cow::Owned(prepared_items))
+    }
+
     pub(crate) async fn record_conversation_items(
         &self,
         turn_context: &TurnContext,
         items: &[ResponseItem],
-    ) {
+    ) -> CodexResult<()> {
+        let items = self.prepare_conversation_items_for_history(turn_context, items)?;
+        let items = items.as_ref();
         {
             let mut state = self.state.lock().await;
             state.record_items(items.iter(), turn_context.truncation_policy);
         }
         self.persist_rollout_response_items(items).await;
         self.send_raw_response_items(turn_context, items).await;
+        Ok(())
     }
 
     async fn maybe_warn_on_server_model_mismatch(
@@ -2984,7 +3018,7 @@ impl Session {
     pub(crate) async fn record_context_updates_and_set_reference_context_item(
         &self,
         turn_context: &TurnContext,
-    ) {
+    ) -> CodexResult<()> {
         let reference_context_item = {
             let state = self.state.lock().await;
             state.reference_context_item()
@@ -3000,7 +3034,7 @@ impl Session {
         let turn_context_item = turn_context.to_turn_context_item();
         if !context_items.is_empty() {
             self.record_conversation_items(turn_context, &context_items)
-                .await;
+                .await?;
         }
         // Persist one `TurnContextItem` per real user turn so resume/lazy replay can recover the
         // latest durable baseline even when this turn emitted no model-visible context diffs.
@@ -3011,6 +3045,7 @@ impl Session {
         // context items. This keeps later runtime diffing aligned with the current turn state.
         let mut state = self.state.lock().await;
         state.set_reference_context_item(Some(turn_context_item));
+        Ok(())
     }
 
     pub(crate) async fn update_token_usage_info(
@@ -3149,16 +3184,17 @@ impl Session {
         &self,
         turn_context: &TurnContext,
         response_item: ResponseItem,
-    ) {
+    ) -> CodexResult<()> {
         // Add to conversation history and persist response item to rollout.
         self.record_conversation_items(turn_context, std::slice::from_ref(&response_item))
-            .await;
+            .await?;
 
         // Derive a turn item and emit lifecycle events if applicable.
         if let Some(item) = parse_turn_item(&response_item) {
             self.emit_turn_item_started(turn_context, &item).await;
             self.emit_turn_item_completed(turn_context, item).await;
         }
+        Ok(())
     }
 
     pub(crate) async fn record_user_prompt_and_emit_turn_item(
@@ -3166,19 +3202,29 @@ impl Session {
         turn_context: &TurnContext,
         input: &[UserInput],
         client_id: Option<String>,
-    ) {
+    ) -> CodexResult<()> {
         // Persist the user message to history, but emit the turn item from `UserInput` so
         // UI-only `text_elements` are preserved. `ResponseItem::Message` does not carry
         // those spans, and `record_response_item_and_emit_turn_item` would drop them.
-        let response_item = ResponseItem::from(ResponseInputItem::from(input.to_vec()));
+        let response_input_item = if turn_context
+            .features
+            .get()
+            .enabled(Feature::ResponsesApiCodexStrictMode)
+        {
+            response_input_item_from_user_input_with_responses_codex_strict_mode(input.to_vec())
+        } else {
+            ResponseInputItem::from(input.to_vec())
+        };
+        let response_item = ResponseItem::from(response_input_item);
         self.record_conversation_items(turn_context, std::slice::from_ref(&response_item))
-            .await;
+            .await?;
         let mut user_message_item = UserMessageItem::new(input);
         user_message_item.client_id = client_id;
         let turn_item = TurnItem::UserMessage(user_message_item);
         self.emit_turn_item_started(turn_context, &turn_item).await;
         self.emit_turn_item_completed(turn_context, turn_item).await;
         self.ensure_rollout_materialized().await;
+        Ok(())
     }
 
     pub(crate) async fn notify_stream_error(

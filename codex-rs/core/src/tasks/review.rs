@@ -15,6 +15,7 @@ use codex_protocol::protocol::ItemCompletedEvent;
 use codex_protocol::protocol::ReviewOutputEvent;
 use codex_protocol::protocol::SubAgentSource;
 use tokio_util::sync::CancellationToken;
+use tracing::warn;
 
 use crate::codex_delegate::run_codex_thread_one_shot;
 use crate::config::Constrained;
@@ -239,7 +240,7 @@ pub(crate) async fn exit_review_mode(
         (rendered, assistant_message)
     };
 
-    session
+    if let Err(err) = session
         .record_conversation_items(
             &ctx,
             &[ResponseItem::Message {
@@ -249,7 +250,10 @@ pub(crate) async fn exit_review_mode(
                 phase: None,
             }],
         )
-        .await;
+        .await
+    {
+        warn!("failed to record review user message: {err:#}");
+    }
 
     session
         .send_event(
@@ -257,7 +261,7 @@ pub(crate) async fn exit_review_mode(
             EventMsg::ExitedReviewMode(ExitedReviewModeEvent { review_output }),
         )
         .await;
-    session
+    if let Err(err) = session
         .record_response_item_and_emit_turn_item(
             ctx.as_ref(),
             ResponseItem::Message {
@@ -269,7 +273,10 @@ pub(crate) async fn exit_review_mode(
                 phase: None,
             },
         )
-        .await;
+        .await
+    {
+        warn!("failed to record review assistant message: {err:#}");
+    }
 
     // Review turns can run before any regular user turn, so explicitly
     // materialize rollout persistence. Do this after emitting review output so

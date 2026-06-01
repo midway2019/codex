@@ -143,6 +143,7 @@ pub const X_RESPONSESAPI_INCLUDE_TIMING_METRICS_HEADER: &str =
     "x-responsesapi-include-timing-metrics";
 const X_CODEX_WS_STREAM_REQUEST_START_MS_CLIENT_METADATA_KEY: &str =
     "x-codex-ws-stream-request-start-ms";
+const RESPONSES_API_CODEX_STRICT_MODE_CLIENT_METADATA_KEY: &str = "RESPONSES_API_CODEX_STRICT_MODE";
 const RESPONSES_WEBSOCKETS_V2_BETA_HEADER_VALUE: &str = "responses_websockets=2026-02-06";
 const RESPONSES_ENDPOINT: &str = "/responses";
 const RESPONSES_COMPACT_ENDPOINT: &str = "/responses/compact";
@@ -177,6 +178,7 @@ struct ModelClientState {
     model_verbosity: Option<VerbosityConfig>,
     enable_request_compression: bool,
     include_timing_metrics: bool,
+    responses_api_codex_strict_mode_enabled: bool,
     beta_features_header: Option<String>,
     include_attestation: bool,
     attestation_provider: Option<Arc<dyn AttestationProvider>>,
@@ -326,6 +328,7 @@ impl ModelClient {
         model_verbosity: Option<VerbosityConfig>,
         enable_request_compression: bool,
         include_timing_metrics: bool,
+        responses_api_codex_strict_mode_enabled: bool,
         beta_features_header: Option<String>,
         attestation_provider: Option<Arc<dyn AttestationProvider>>,
     ) -> Self {
@@ -350,6 +353,7 @@ impl ModelClient {
                 model_verbosity,
                 enable_request_compression,
                 include_timing_metrics,
+                responses_api_codex_strict_mode_enabled,
                 beta_features_header,
                 include_attestation,
                 attestation_provider,
@@ -681,6 +685,12 @@ impl ModelClient {
                 turn_metadata.to_string(),
             );
         }
+        if self.state.responses_api_codex_strict_mode_enabled {
+            client_metadata.insert(
+                RESPONSES_API_CODEX_STRICT_MODE_CLIENT_METADATA_KEY.to_string(),
+                "true".to_string(),
+            );
+        }
         client_metadata
     }
 
@@ -744,7 +754,11 @@ impl ModelClient {
         service_tier: Option<String>,
     ) -> Result<ResponsesApiRequest> {
         let instructions = &prompt.base_instructions.text;
-        let input = prompt.get_formatted_input();
+        let mut input = prompt.get_formatted_input();
+        if self.state.responses_api_codex_strict_mode_enabled {
+            crate::responses_strict_images::prepare_response_items_for_responses_codex_strict_mode_request_fallback(&mut input)
+                .map_err(|err| CodexErr::InvalidRequest(err.to_string()))?;
+        }
         let tools = create_tools_json_for_responses_api(&prompt.tools)?;
         let reasoning = Self::build_reasoning(model_info, effort, summary);
         let include = if reasoning.is_some() {
@@ -770,6 +784,17 @@ impl ModelClient {
         );
         let prompt_cache_key = Some(self.prompt_cache_key());
         let service_tier = model_info.service_tier_for_request(service_tier);
+        let mut client_metadata = HashMap::from([(
+            X_CODEX_INSTALLATION_ID_HEADER.to_string(),
+            self.state.installation_id.clone(),
+        )]);
+        if self.state.responses_api_codex_strict_mode_enabled {
+            client_metadata.insert(
+                RESPONSES_API_CODEX_STRICT_MODE_CLIENT_METADATA_KEY.to_string(),
+                "true".to_string(),
+            );
+        }
+
         let request = ResponsesApiRequest {
             model: model_info.slug.clone(),
             instructions: instructions.clone(),
@@ -784,10 +809,7 @@ impl ModelClient {
             service_tier,
             prompt_cache_key,
             text,
-            client_metadata: Some(HashMap::from([(
-                X_CODEX_INSTALLATION_ID_HEADER.to_string(),
-                self.state.installation_id.clone(),
-            )])),
+            client_metadata: Some(client_metadata),
         };
         Ok(request)
     }

@@ -184,6 +184,9 @@ impl MemoryStartupContext {
             config.model_verbosity,
             config.features.enabled(Feature::EnableRequestCompression),
             config.features.enabled(Feature::RuntimeMetrics),
+            config
+                .features
+                .enabled(Feature::ResponsesApiCodexStrictMode),
             /*beta_features_header*/ None,
             /*attestation_provider*/ None,
         );

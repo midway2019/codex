@@ -1957,6 +1957,7 @@ dependencies = [
  "flate2",
  "futures",
  "hmac 0.12.1",
+ "image",
  "opentelemetry",
  "opentelemetry_sdk",
  "pretty_assertions",

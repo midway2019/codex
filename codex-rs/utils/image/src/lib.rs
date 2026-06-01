@@ -118,6 +118,37 @@ pub fn load_for_prompt_bytes(
     })
 }
 
+pub fn load_data_url_for_prompt(
+    image_url: &str,
+    mode: PromptImageMode,
+) -> Result<EncodedImage, ImageProcessingError> {
+    let rest =
+        image_url
+            .strip_prefix("data:")
+            .ok_or_else(|| ImageProcessingError::InvalidDataUrl {
+                reason: "missing data: prefix".to_string(),
+            })?;
+    let (metadata, encoded) =
+        rest.split_once(',')
+            .ok_or_else(|| ImageProcessingError::InvalidDataUrl {
+                reason: "missing comma separator".to_string(),
+            })?;
+    let is_base64 = metadata.split(';').any(|part| part == "base64");
+    if !is_base64 {
+        return Err(ImageProcessingError::InvalidDataUrl {
+            reason: "only base64 data URLs are supported".to_string(),
+        });
+    }
+
+    let file_bytes =
+        BASE64_STANDARD
+            .decode(encoded)
+            .map_err(|source| ImageProcessingError::InvalidDataUrl {
+                reason: format!("invalid base64 payload: {source}"),
+            })?;
+    load_for_prompt_bytes(Path::new("<data-url-image>"), file_bytes, mode)
+}
+
 fn can_preserve_source_bytes(format: ImageFormat) -> bool {
     // Public API docs explicitly call out non-animated GIF support only.
     // Preserve byte-for-byte only for formats we can safely pass through.
@@ -262,6 +293,46 @@ mod tests {
                 .expect("read resized bytes back into image");
             assert_eq!(loaded.dimensions(), (processed.width, processed.height));
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn load_data_url_for_prompt_downscales_large_image() {
+        let image = ImageBuffer::from_pixel(4096, 2048, Rgba([200u8, 10, 10, 255]));
+        let original_bytes = image_bytes(&image, ImageFormat::Png);
+        let image_url = EncodedImage {
+            bytes: original_bytes,
+            mime: "image/png".to_string(),
+            width: 4096,
+            height: 2048,
+        }
+        .into_data_url();
+
+        let processed = load_data_url_for_prompt(&image_url, PromptImageMode::ResizeToFit)
+            .expect("process data URL image");
+
+        assert!(processed.width <= MAX_DIMENSION);
+        assert!(processed.height <= MAX_DIMENSION);
+        assert_eq!(processed.mime, "image/png");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn load_data_url_for_prompt_preserves_original_large_image() {
+        let image = ImageBuffer::from_pixel(4096, 2048, Rgba([10u8, 20, 30, 255]));
+        let original_bytes = image_bytes(&image, ImageFormat::Png);
+        let image_url = EncodedImage {
+            bytes: original_bytes.clone(),
+            mime: "image/png".to_string(),
+            width: 4096,
+            height: 2048,
+        }
+        .into_data_url();
+
+        let processed = load_data_url_for_prompt(&image_url, PromptImageMode::Original)
+            .expect("process data URL image");
+
+        assert_eq!(processed.width, 4096);
+        assert_eq!(processed.height, 2048);
+        assert_eq!(processed.bytes, original_bytes);
     }
 
     #[tokio::test(flavor = "multi_thread")]

@@ -393,10 +393,14 @@ impl CodexThread {
             content: vec![ContentItem::InputText { text: message }],
             phase: None,
         };
-        self.codex
+        if let Err(err) = self
+            .codex
             .session
             .inject_no_new_turn(vec![item], /*current_turn_context*/ None)
-            .await;
+            .await
+        {
+            tracing::warn!("failed to inject user message without turn: {err:#}");
+        }
     }
 
     /// Record raw Responses API items without starting a new turn.
@@ -412,12 +416,12 @@ impl CodexThread {
             self.codex
                 .session
                 .record_context_updates_and_set_reference_context_item(turn_context.as_ref())
-                .await;
+                .await?;
         }
         self.codex
             .session
             .inject_no_new_turn(items, Some(turn_context.as_ref()))
-            .await;
+            .await?;
         self.codex.session.flush_rollout().await?;
         Ok(())
     }

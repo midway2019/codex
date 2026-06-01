@@ -182,8 +182,12 @@ async fn record_image_generation_instructions(
         image_output_dir.display(),
         image_output_path.display(),
     ));
-    sess.record_conversation_items(turn_context, &[message])
-        .await;
+    if let Err(err) = sess
+        .record_conversation_items(turn_context, &[message])
+        .await
+    {
+        warn!("failed to record image generation instructions: {err:#}");
+    }
 }
 
 /// Persist a completed model response item and record any cited memory usage.
@@ -191,14 +195,14 @@ pub(crate) async fn record_completed_response_item(
     sess: &Session,
     turn_context: &TurnContext,
     item: &ResponseItem,
-) {
+) -> Result<()> {
     record_completed_response_item_with_finalized_facts(
         sess,
         turn_context,
         item,
         /*finalized_facts*/ None,
     )
-    .await;
+    .await
 }
 
 pub(crate) async fn record_completed_response_item_with_finalized_facts(
@@ -206,9 +210,9 @@ pub(crate) async fn record_completed_response_item_with_finalized_facts(
     turn_context: &TurnContext,
     item: &ResponseItem,
     finalized_facts: Option<&FinalizedTurnItemFacts>,
-) {
+) -> Result<()> {
     sess.record_conversation_items(turn_context, std::slice::from_ref(item))
-        .await;
+        .await?;
     let defers_mailbox_delivery = finalized_facts.map_or_else(
         || {
             completed_item_defers_mailbox_delivery_to_next_turn(
@@ -240,6 +244,7 @@ pub(crate) async fn record_completed_response_item_with_finalized_facts(
         sess.record_memory_citation_for_turn(&turn_context.sub_id)
             .await;
     }
+    Ok(())
 }
 
 fn response_item_may_include_external_context(item: &ResponseItem) -> bool {
@@ -429,7 +434,7 @@ pub(crate) async fn handle_output_item_done(
             );
 
             record_completed_response_item(ctx.sess.as_ref(), ctx.turn_context.as_ref(), &item)
-                .await;
+                .await?;
 
             let cancellation_token = ctx.cancellation_token.child_token();
             let tool_future: InFlightFuture<'static> = Box::pin(
@@ -478,7 +483,7 @@ pub(crate) async fn handle_output_item_done(
                 &item,
                 finalized_facts.as_ref(),
             )
-            .await;
+            .await?;
 
             output.last_agent_message = finalized_facts.and_then(|facts| facts.last_agent_message);
         }
@@ -492,14 +497,14 @@ pub(crate) async fn handle_output_item_done(
                 },
             };
             record_completed_response_item(ctx.sess.as_ref(), ctx.turn_context.as_ref(), &item)
-                .await;
+                .await?;
             if let Some(response_item) = response_input_to_response_item(&response) {
                 ctx.sess
                     .record_conversation_items(
                         &ctx.turn_context,
                         std::slice::from_ref(&response_item),
                     )
-                    .await;
+                    .await?;
             }
 
             output.needs_follow_up = true;

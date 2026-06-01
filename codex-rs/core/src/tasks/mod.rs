@@ -608,20 +608,32 @@ impl Session {
                 let hook_outcome =
                     inspect_pending_input(self, &turn_context, &pending_input_item).await;
                 if hook_outcome.should_stop {
-                    record_additional_contexts(
+                    if let Err(err) = record_additional_contexts(
                         self,
                         &turn_context,
                         hook_outcome.additional_contexts,
                     )
-                    .await;
+                    .await
+                    {
+                        warn!("failed to record blocked pending input context: {err:#}");
+                    }
                 } else {
-                    record_pending_input(
+                    if let Err(err) = record_pending_input(
                         self,
                         &turn_context,
                         pending_input_item,
                         hook_outcome.additional_contexts,
                     )
-                    .await;
+                    .await
+                    {
+                        warn!("failed to record pending input after task finished: {err:#}");
+                        self.notify_stream_error(
+                            turn_context.as_ref(),
+                            "Failed to record pending input after task finished.",
+                            err,
+                        )
+                        .await;
+                    }
                 }
             }
         }
@@ -851,11 +863,15 @@ impl Session {
                 ),
             )
         {
-            self.record_conversation_items(
-                task.turn_context.as_ref(),
-                std::slice::from_ref(&marker),
-            )
-            .await;
+            if let Err(err) = self
+                .record_conversation_items(
+                    task.turn_context.as_ref(),
+                    std::slice::from_ref(&marker),
+                )
+                .await
+            {
+                warn!("failed to record interrupted-turn marker: {err:#}");
+            }
             // Ensure the marker is durably visible before emitting TurnAborted: some clients
             // synchronously re-read the rollout on receipt of the abort event.
             if let Err(err) = self.flush_rollout().await {

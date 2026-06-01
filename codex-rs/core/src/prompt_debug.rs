@@ -2,11 +2,13 @@ use std::sync::Arc;
 
 use codex_exec_server::EnvironmentManager;
 use codex_exec_server::ExecServerRuntimePaths;
+use codex_features::Feature;
 use codex_login::AuthManager;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CodexResult;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
+use codex_protocol::models::response_input_item_from_user_input_with_responses_codex_strict_mode;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::user_input::UserInput;
 use tokio_util::sync::CancellationToken;
@@ -75,13 +77,21 @@ pub(crate) async fn build_prompt_input_from_session(
 ) -> CodexResult<Vec<ResponseItem>> {
     let turn_context = sess.new_default_turn().await;
     sess.record_context_updates_and_set_reference_context_item(turn_context.as_ref())
-        .await;
+        .await?;
 
     if !input.is_empty() {
-        let input_item = ResponseInputItem::from(input);
+        let input_item = if turn_context
+            .features
+            .get()
+            .enabled(Feature::ResponsesApiCodexStrictMode)
+        {
+            response_input_item_from_user_input_with_responses_codex_strict_mode(input)
+        } else {
+            ResponseInputItem::from(input)
+        };
         let response_item = ResponseItem::from(input_item);
         sess.record_conversation_items(turn_context.as_ref(), std::slice::from_ref(&response_item))
-            .await;
+            .await?;
     }
 
     let prompt_input = sess

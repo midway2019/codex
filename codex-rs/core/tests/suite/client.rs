@@ -908,6 +908,7 @@ async fn send_provider_auth_request(server: &MockServer, auth: ModelProviderAuth
         config.model_verbosity,
         /*enable_request_compression*/ false,
         /*include_timing_metrics*/ false,
+        /*responses_api_codex_strict_mode_enabled*/ false,
         /*beta_features_header*/ None,
         /*attestation_provider*/ None,
     );
@@ -2365,6 +2366,7 @@ async fn azure_responses_request_includes_store_and_reasoning_ids() {
         config.model_verbosity,
         /*enable_request_compression*/ false,
         /*include_timing_metrics*/ false,
+        /*responses_api_codex_strict_mode_enabled*/ false,
         /*beta_features_header*/ None,
         /*attestation_provider*/ None,
     );

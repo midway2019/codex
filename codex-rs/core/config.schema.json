@@ -556,6 +556,9 @@
             "request_rule": {
               "type": "boolean"
             },
+            "responses_api_codex_strict_mode": {
+              "type": "boolean"
+            },
             "responses_websocket_response_processed": {
               "type": "boolean"
             },
@@ -4677,6 +4680,9 @@
           "type": "boolean"
         },
         "request_rule": {
+          "type": "boolean"
+        },
+        "responses_api_codex_strict_mode": {
           "type": "boolean"
         },
         "responses_websocket_response_processed": {

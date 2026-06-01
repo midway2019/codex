@@ -1,6 +1,7 @@
 use super::AuthRequestTelemetryContext;
 use super::ModelClient;
 use super::PendingUnauthorizedRetry;
+use super::RESPONSES_API_CODEX_STRICT_MODE_CLIENT_METADATA_KEY;
 use super::UnauthorizedRecoveryExecution;
 use super::X_CODEX_INSTALLATION_ID_HEADER;
 use super::X_CODEX_PARENT_THREAD_ID_HEADER;
@@ -68,6 +69,18 @@ fn test_model_client_with_parent(
     session_source: SessionSource,
     parent_thread_id: Option<ThreadId>,
 ) -> ModelClient {
+    test_model_client_with_parent_and_strict_mode(
+        session_source,
+        parent_thread_id,
+        /*responses_api_codex_strict_mode_enabled*/ false,
+    )
+}
+
+fn test_model_client_with_parent_and_strict_mode(
+    session_source: SessionSource,
+    parent_thread_id: Option<ThreadId>,
+    responses_api_codex_strict_mode_enabled: bool,
+) -> ModelClient {
     let provider = create_oss_provider_with_base_url("https://example.com/v1", WireApi::Responses);
     let thread_id = ThreadId::new();
     ModelClient::new(
@@ -81,6 +94,7 @@ fn test_model_client_with_parent(
         /*model_verbosity*/ None,
         /*enable_request_compression*/ false,
         /*include_timing_metrics*/ false,
+        responses_api_codex_strict_mode_enabled,
         /*beta_features_header*/ None,
         /*attestation_provider*/ None,
     )
@@ -322,6 +336,22 @@ fn build_ws_client_metadata_includes_window_lineage_and_turn_metadata() {
     );
 }
 
+#[test]
+fn build_ws_client_metadata_includes_responses_codex_strict_mode_flag() {
+    let client = test_model_client_with_parent_and_strict_mode(
+        SessionSource::Cli,
+        /*parent_thread_id*/ None,
+        /*responses_api_codex_strict_mode_enabled*/ true,
+    );
+
+    let client_metadata = client.build_ws_client_metadata(/*turn_metadata_header*/ None);
+
+    assert_eq!(
+        client_metadata.get(RESPONSES_API_CODEX_STRICT_MODE_CLIENT_METADATA_KEY),
+        Some(&"true".to_string())
+    );
+}
+
 #[tokio::test]
 async fn summarize_memories_returns_empty_for_empty_input() {
     let client = test_model_client(SessionSource::Cli);
@@ -535,6 +565,7 @@ fn model_client_with_counting_attestation(
         /*model_verbosity*/ None,
         /*enable_request_compression*/ false,
         /*include_timing_metrics*/ false,
+        /*responses_api_codex_strict_mode_enabled*/ false,
         /*beta_features_header*/ None,
         Some(Arc::new(CountingAttestationProvider {
             calls: attestation_calls.clone(),

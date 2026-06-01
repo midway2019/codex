@@ -601,12 +601,15 @@ impl ToolRegistry {
         };
 
         if let Some(outcome) = &post_tool_use_outcome {
-            record_additional_contexts(
+            if let Err(err) = record_additional_contexts(
                 &invocation.session,
                 &invocation.turn,
                 outcome.additional_contexts.clone(),
             )
-            .await;
+            .await
+            {
+                warn!("failed to record post-tool hook additional context: {err:#}");
+            }
             let replacement_text = if outcome.should_stop {
                 Some(
                     outcome
