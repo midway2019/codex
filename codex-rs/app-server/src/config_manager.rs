@@ -1,8 +1,10 @@
 use codex_arg0::Arg0DispatchPaths;
 use codex_cloud_config::cloud_requirements_loader;
+use codex_cloud_config::product_default_layer_loader;
 use codex_config::CloudRequirementsLoader;
 use codex_config::ConfigLayerStack;
 use codex_config::LoaderOverrides;
+use codex_config::ProductDefaultLayerLoader;
 use codex_config::ThreadConfigLoader;
 use codex_config::loader::load_config_layers_state;
 use codex_core::config::Config;
@@ -32,20 +34,34 @@ pub(crate) struct ConfigManager {
     loader_overrides: LoaderOverrides,
     strict_config: bool,
     cloud_requirements: Arc<RwLock<CloudRequirementsLoader>>,
+    product_default_layer: Arc<RwLock<ProductDefaultLayerLoader>>,
     arg0_paths: Arg0DispatchPaths,
     thread_config_loader: Arc<RwLock<Arc<dyn ThreadConfigLoader>>>,
 }
 
+pub(crate) struct ConfigManagerOptions {
+    pub(crate) codex_home: PathBuf,
+    pub(crate) cli_overrides: Vec<(String, TomlValue)>,
+    pub(crate) loader_overrides: LoaderOverrides,
+    pub(crate) strict_config: bool,
+    pub(crate) cloud_requirements: CloudRequirementsLoader,
+    pub(crate) product_default_layer: ProductDefaultLayerLoader,
+    pub(crate) arg0_paths: Arg0DispatchPaths,
+    pub(crate) thread_config_loader: Arc<dyn ThreadConfigLoader>,
+}
+
 impl ConfigManager {
-    pub(crate) fn new(
-        codex_home: PathBuf,
-        cli_overrides: Vec<(String, TomlValue)>,
-        loader_overrides: LoaderOverrides,
-        strict_config: bool,
-        cloud_requirements: CloudRequirementsLoader,
-        arg0_paths: Arg0DispatchPaths,
-        thread_config_loader: Arc<dyn ThreadConfigLoader>,
-    ) -> Self {
+    pub(crate) fn new(options: ConfigManagerOptions) -> Self {
+        let ConfigManagerOptions {
+            codex_home,
+            cli_overrides,
+            loader_overrides,
+            strict_config,
+            cloud_requirements,
+            product_default_layer,
+            arg0_paths,
+            thread_config_loader,
+        } = options;
         Self {
             codex_home,
             cli_overrides: Arc::new(RwLock::new(cli_overrides)),
@@ -53,6 +69,7 @@ impl ConfigManager {
             loader_overrides,
             strict_config,
             cloud_requirements: Arc::new(RwLock::new(cloud_requirements)),
+            product_default_layer: Arc::new(RwLock::new(product_default_layer)),
             arg0_paths,
             thread_config_loader: Arc::new(RwLock::new(thread_config_loader)),
         }
@@ -80,6 +97,13 @@ impl ConfigManager {
             .unwrap_or_default()
     }
 
+    pub(crate) fn current_product_default_layer(&self) -> ProductDefaultLayerLoader {
+        self.product_default_layer
+            .read()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
+    }
+
     pub(crate) fn extend_runtime_feature_enablement<I>(&self, enablement: I) -> Result<(), ()>
     where
         I: IntoIterator<Item = (String, bool)>,
@@ -95,12 +119,19 @@ impl ConfigManager {
         auth_manager: Arc<AuthManager>,
         chatgpt_base_url: String,
     ) {
+        let product_default_layer =
+            product_default_layer_loader(auth_manager.clone(), chatgpt_base_url.clone());
         let loader =
             cloud_requirements_loader(auth_manager, chatgpt_base_url, self.codex_home.clone());
         if let Ok(mut guard) = self.cloud_requirements.write() {
             *guard = loader;
         } else {
             warn!("failed to update cloud requirements loader");
+        }
+        if let Ok(mut guard) = self.product_default_layer.write() {
+            *guard = product_default_layer;
+        } else {
+            warn!("failed to update product default layer");
         }
     }
 
@@ -163,11 +194,13 @@ impl ConfigManager {
     }
 
     pub(crate) async fn load_default_config(&self) -> std::io::Result<Config> {
-        let mut config = Config::load_default_with_cli_overrides_for_codex_home(
-            self.codex_home.clone(),
-            self.current_cli_overrides(),
-        )
-        .await?;
+        let mut config =
+            Config::load_default_with_cli_overrides_for_codex_home_and_product_default_layer(
+                self.codex_home.clone(),
+                self.current_cli_overrides(),
+                self.current_product_default_layer(),
+            )
+            .await?;
         if self.loader_overrides.user_config_path.is_some()
             || self.loader_overrides.user_config_profile.is_some()
         {
@@ -245,6 +278,7 @@ impl ConfigManager {
             .strict_config(self.strict_config)
             .harness_overrides(typesafe_overrides)
             .fallback_cwd(fallback_cwd)
+            .product_default_layer_loader(self.current_product_default_layer())
             .cloud_requirements(self.current_cloud_requirements())
             .thread_config_loader(self.current_thread_config_loader())
             .build()
@@ -273,6 +307,7 @@ impl ConfigManager {
             &self.current_cli_overrides(),
             codex_config::ConfigLoadOptions {
                 loader_overrides: self.loader_overrides.clone(),
+                product_default_layer: self.current_product_default_layer(),
                 strict_config: self.strict_config,
             },
             self.current_cloud_requirements(),
@@ -305,15 +340,16 @@ impl ConfigManager {
         loader_overrides: LoaderOverrides,
         cloud_requirements: CloudRequirementsLoader,
     ) -> Self {
-        Self::new(
+        Self::new(ConfigManagerOptions {
             codex_home,
             cli_overrides,
             loader_overrides,
-            /*strict_config*/ false,
+            strict_config: false,
             cloud_requirements,
-            Arg0DispatchPaths::default(),
-            Arc::new(codex_config::NoopThreadConfigLoader),
-        )
+            product_default_layer: ProductDefaultLayerLoader::default(),
+            arg0_paths: Arg0DispatchPaths::default(),
+            thread_config_loader: Arc::new(codex_config::NoopThreadConfigLoader),
+        })
     }
 
     #[cfg(test)]

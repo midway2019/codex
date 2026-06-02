@@ -19,6 +19,8 @@ use codex_config::CloudRequirementsLoadError;
 use codex_config::CloudRequirementsLoadErrorCode;
 use codex_config::CloudRequirementsLoader;
 use codex_config::ConfigRequirementsToml;
+use codex_config::ProductDefaultLayer;
+use codex_config::ProductDefaultLayerLoader;
 use codex_config::types::AuthCredentialsStoreMode;
 use codex_core::util::backoff;
 use codex_login::AuthManager;
@@ -45,6 +47,7 @@ use tokio::time::sleep;
 use tokio::time::timeout;
 
 const CLOUD_REQUIREMENTS_TIMEOUT: Duration = Duration::from_secs(15);
+const PRODUCT_DEFAULTS_TIMEOUT: Duration = Duration::from_secs(15);
 const CLOUD_REQUIREMENTS_MAX_ATTEMPTS: usize = 5;
 const CLOUD_REQUIREMENTS_CACHE_FILENAME: &str = "cloud-requirements-cache.json";
 const CLOUD_REQUIREMENTS_CACHE_REFRESH_INTERVAL: Duration = Duration::from_secs(5 * 60);
@@ -189,6 +192,13 @@ fn cloud_requirements_eligible_auth(auth: &CodexAuth) -> bool {
     };
     auth.uses_codex_backend()
         && (plan_type.is_business_like() || matches!(plan_type, PlanType::Enterprise))
+}
+
+fn product_defaults_eligible_auth(auth: &CodexAuth) -> bool {
+    auth.uses_codex_backend()
+        && auth
+            .account_plan_type()
+            .is_some_and(PlanType::is_workspace_account)
 }
 
 fn cache_payload_bytes(payload: &CloudRequirementsCacheSignedPayload) -> Option<Vec<u8>> {
@@ -734,6 +744,22 @@ pub async fn cloud_requirements_loader_for_storage(
     credentials_store_mode: AuthCredentialsStoreMode,
     chatgpt_base_url: String,
 ) -> CloudRequirementsLoader {
+    cloud_requirements_loader_and_product_default_layer_for_storage(
+        codex_home,
+        enable_codex_api_key_env,
+        credentials_store_mode,
+        chatgpt_base_url,
+    )
+    .await
+    .0
+}
+
+pub async fn cloud_requirements_loader_and_product_default_layer_for_storage(
+    codex_home: PathBuf,
+    enable_codex_api_key_env: bool,
+    credentials_store_mode: AuthCredentialsStoreMode,
+    chatgpt_base_url: String,
+) -> (CloudRequirementsLoader, ProductDefaultLayerLoader) {
     let auth_manager = AuthManager::shared(
         codex_home.clone(),
         enable_codex_api_key_env,
@@ -741,7 +767,68 @@ pub async fn cloud_requirements_loader_for_storage(
         Some(chatgpt_base_url.clone()),
     )
     .await;
-    cloud_requirements_loader(auth_manager, chatgpt_base_url, codex_home)
+    let product_default_layer =
+        product_default_layer_loader(auth_manager.clone(), chatgpt_base_url.clone());
+    (
+        cloud_requirements_loader(auth_manager, chatgpt_base_url, codex_home),
+        product_default_layer,
+    )
+}
+
+pub fn product_default_layer_loader(
+    auth_manager: Arc<AuthManager>,
+    chatgpt_base_url: String,
+) -> ProductDefaultLayerLoader {
+    ProductDefaultLayerLoader::new(fetch_product_default_layer(auth_manager, chatgpt_base_url))
+}
+
+async fn fetch_product_default_layer(
+    auth_manager: Arc<AuthManager>,
+    chatgpt_base_url: String,
+) -> Result<ProductDefaultLayer, CloudRequirementsLoadError> {
+    let Some(auth) = auth_manager.auth().await else {
+        return Ok(ProductDefaultLayer::default());
+    };
+    if !product_defaults_eligible_auth(&auth) {
+        return Ok(ProductDefaultLayer::default());
+    }
+
+    let client = match BackendClient::from_auth(chatgpt_base_url, &auth) {
+        Ok(client) => client,
+        Err(err) => {
+            tracing::warn!(error = %err, "Failed to construct backend client for product defaults; continuing without product defaults");
+            return Ok(ProductDefaultLayer::default());
+        }
+    };
+
+    let response = match timeout(PRODUCT_DEFAULTS_TIMEOUT, client.get_config_bundle()).await {
+        Ok(Ok(response)) => response,
+        Ok(Err(err)) => {
+            tracing::warn!(error = %err, "Failed to fetch product defaults; continuing without product defaults");
+            return Ok(ProductDefaultLayer::default());
+        }
+        Err(_) => {
+            tracing::warn!(
+                timeout_secs = PRODUCT_DEFAULTS_TIMEOUT.as_secs(),
+                "Timed out fetching product defaults; continuing without product defaults"
+            );
+            return Ok(ProductDefaultLayer::default());
+        }
+    };
+
+    let fragments = response
+        .config_toml
+        .flatten()
+        .and_then(|config_toml| config_toml.product_defaults.flatten())
+        .unwrap_or_default();
+    let contents = fragments.iter().map(|fragment| fragment.contents.as_str());
+    match ProductDefaultLayer::from_toml_fragments(contents) {
+        Ok(product_default_layer) => Ok(product_default_layer),
+        Err(err) => {
+            tracing::error!(error = %err, "Failed to parse product defaults; continuing without product defaults");
+            Ok(ProductDefaultLayer::default())
+        }
+    }
 }
 
 fn parse_cloud_requirements(

@@ -16,7 +16,7 @@ use codex_app_server_protocol::Thread as AppServerThread;
 use codex_app_server_protocol::ThreadListParams;
 use codex_app_server_protocol::ThreadSortKey;
 use codex_arg0::Arg0DispatchPaths;
-use codex_cloud_config::cloud_requirements_loader_for_storage;
+use codex_cloud_config::cloud_requirements_loader_and_product_default_layer_for_storage;
 use codex_config::ConfigLoadOptions;
 use codex_config::LoaderOverrides;
 use codex_exec_server::EnvironmentManager;
@@ -250,6 +250,7 @@ async fn start_app_server_for_archive_command(
         cli_kv_overrides.clone(),
         ConfigLoadOptions {
             loader_overrides: loader_overrides.clone(),
+            product_default_layer: Default::default(),
             strict_config,
         },
     )
@@ -259,13 +260,14 @@ async fn start_app_server_for_archive_command(
         .chatgpt_base_url
         .clone()
         .unwrap_or_else(|| "https://chatgpt.com/backend-api/".to_string());
-    let cloud_requirements = cloud_requirements_loader_for_storage(
-        codex_home.to_path_buf(),
-        /*enable_codex_api_key_env*/ false,
-        config_toml.cli_auth_credentials_store.unwrap_or_default(),
-        chatgpt_base_url,
-    )
-    .await;
+    let (cloud_requirements, product_default_layer) =
+        cloud_requirements_loader_and_product_default_layer_for_storage(
+            codex_home.to_path_buf(),
+            /*enable_codex_api_key_env*/ false,
+            config_toml.cli_auth_credentials_store.unwrap_or_default(),
+            chatgpt_base_url,
+        )
+        .await;
 
     let model_provider = if cli.oss {
         resolve_oss_provider(cli.oss_provider.as_deref(), &config_toml)
@@ -297,6 +299,7 @@ async fn start_app_server_for_archive_command(
             ..Default::default()
         })
         .loader_overrides(loader_overrides.clone())
+        .product_default_layer_loader(product_default_layer.clone())
         .strict_config(strict_config)
         .cloud_requirements(cloud_requirements.clone())
         .build()
@@ -313,6 +316,7 @@ async fn start_app_server_for_archive_command(
         loader_overrides,
         strict_config,
         cloud_requirements,
+        product_default_layer,
         codex_feedback::CodexFeedback::new(),
         /*log_db*/ None,
         state_db,

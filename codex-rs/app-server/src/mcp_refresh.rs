@@ -1,4 +1,6 @@
 use crate::config_manager::ConfigManager;
+#[cfg(test)]
+use crate::config_manager::ConfigManagerOptions;
 use codex_core::CodexThread;
 use codex_core::ThreadManager;
 use codex_core::config::Config;
@@ -208,15 +210,16 @@ mod tests {
             good_loads: AtomicUsize::new(0),
             bad_loads: AtomicUsize::new(0),
         });
-        let config_manager = ConfigManager::new(
-            temp_dir.path().to_path_buf(),
-            Vec::new(),
-            LoaderOverrides::without_managed_config_for_tests(),
-            /*strict_config*/ false,
-            CloudRequirementsLoader::default(),
-            Arg0DispatchPaths::default(),
-            loader.clone(),
-        );
+        let config_manager = ConfigManager::new(ConfigManagerOptions {
+            codex_home: temp_dir.path().to_path_buf(),
+            cli_overrides: Vec::new(),
+            loader_overrides: LoaderOverrides::without_managed_config_for_tests(),
+            strict_config: false,
+            cloud_requirements: CloudRequirementsLoader::default(),
+            product_default_layer: Default::default(),
+            arg0_paths: Arg0DispatchPaths::default(),
+            thread_config_loader: loader.clone(),
+        });
 
         Ok((temp_dir, thread_manager, config_manager, loader))
     }

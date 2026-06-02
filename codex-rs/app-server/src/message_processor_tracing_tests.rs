@@ -3,6 +3,7 @@ use super::MessageProcessor;
 use super::MessageProcessorArgs;
 use crate::analytics_utils::analytics_events_client_from_config;
 use crate::config_manager::ConfigManager;
+use crate::config_manager::ConfigManagerOptions;
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::OutgoingMessageSender;
 use crate::transport::AppServerTransport;
@@ -235,15 +236,16 @@ async fn build_test_processor(
     let (outgoing_tx, outgoing_rx) = mpsc::channel(16);
     let auth_manager =
         AuthManager::shared_from_config(config.as_ref(), /*enable_codex_api_key_env*/ false).await;
-    let config_manager = ConfigManager::new(
-        config.codex_home.to_path_buf(),
-        Vec::new(),
-        LoaderOverrides::default(),
-        /*strict_config*/ false,
-        CloudRequirementsLoader::default(),
-        Arg0DispatchPaths::default(),
-        Arc::new(codex_config::NoopThreadConfigLoader),
-    );
+    let config_manager = ConfigManager::new(ConfigManagerOptions {
+        codex_home: config.codex_home.to_path_buf(),
+        cli_overrides: Vec::new(),
+        loader_overrides: LoaderOverrides::default(),
+        strict_config: false,
+        cloud_requirements: CloudRequirementsLoader::default(),
+        product_default_layer: Default::default(),
+        arg0_paths: Arg0DispatchPaths::default(),
+        thread_config_loader: Arc::new(codex_config::NoopThreadConfigLoader),
+    });
     let analytics_events_client =
         analytics_events_client_from_config(Arc::clone(&auth_manager), config.as_ref());
     let outgoing = Arc::new(OutgoingMessageSender::new(

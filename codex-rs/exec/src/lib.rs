@@ -51,7 +51,7 @@ use codex_app_server_protocol::TurnStartParams;
 use codex_app_server_protocol::TurnStartResponse;
 use codex_app_server_protocol::TurnStartedNotification;
 use codex_arg0::Arg0DispatchPaths;
-use codex_cloud_config::cloud_requirements_loader_for_storage;
+use codex_cloud_config::cloud_requirements_loader_and_product_default_layer_for_storage;
 use codex_config::ConfigLoadError;
 use codex_config::ConfigLoadOptions;
 use codex_config::LoaderOverrides;
@@ -336,6 +336,7 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
         cli_kv_overrides.clone(),
         ConfigLoadOptions {
             loader_overrides: loader_overrides.clone(),
+            product_default_layer: Default::default(),
             strict_config,
         },
     )
@@ -364,16 +365,18 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
         .clone()
         .unwrap_or_else(|| "https://chatgpt.com/backend-api/".to_string());
     // TODO(gt): Make cloud requirements failures blocking once we can fail-closed.
-    let cloud_requirements = cloud_requirements_loader_for_storage(
-        codex_home.to_path_buf(),
-        /*enable_codex_api_key_env*/ false,
-        config_toml.cli_auth_credentials_store.unwrap_or_default(),
-        chatgpt_base_url,
-    )
-    .await;
+    let (cloud_requirements, product_default_layer) =
+        cloud_requirements_loader_and_product_default_layer_for_storage(
+            codex_home.to_path_buf(),
+            /*enable_codex_api_key_env*/ false,
+            config_toml.cli_auth_credentials_store.unwrap_or_default(),
+            chatgpt_base_url,
+        )
+        .await;
     let run_cli_overrides = cli_kv_overrides.clone();
     let run_loader_overrides = loader_overrides.clone();
     let run_cloud_requirements = cloud_requirements.clone();
+    let run_product_default_layer = product_default_layer.clone();
 
     let model_provider = if oss {
         let resolved = resolve_oss_provider(oss_provider.as_deref(), &config_toml);
@@ -436,6 +439,7 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
             .cli_overrides(cli_kv_overrides.clone())
             .harness_overrides(overrides)
             .loader_overrides(loader_overrides.clone())
+            .product_default_layer_loader(product_default_layer.clone())
             .strict_config(strict_config)
             .cloud_requirements(cloud_requirements.clone())
             .build()
@@ -537,6 +541,7 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
         loader_overrides: run_loader_overrides,
         strict_config,
         cloud_requirements: run_cloud_requirements,
+        product_default_layer: run_product_default_layer,
         feedback: CodexFeedback::new(),
         log_db: None,
         state_db: state_db.clone(),

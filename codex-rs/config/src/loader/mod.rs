@@ -89,6 +89,7 @@ async fn first_layer_config_error_from_entries(layers: &[ConfigLayerEntry]) -> O
 ///
 /// Configuration is built up from multiple layers in the following order:
 ///
+/// - product  OpenAI-supplied product defaults
 /// - admin:    managed preferences (*)
 /// - system    `/etc/codex/config.toml` (Unix) or
 ///   `%ProgramData%\OpenAI\Codex\config.toml` (Windows)
@@ -119,6 +120,7 @@ pub async fn load_config_layers_state(
 ) -> io::Result<ConfigLayerStack> {
     let ConfigLoadOptions {
         loader_overrides: overrides,
+        product_default_layer,
         strict_config,
     } = options.into();
     let active_user_profile = overrides.user_config_profile.clone();
@@ -174,6 +176,14 @@ pub async fn load_config_layers_state(
         .map_err(io::Error::other)?;
 
     let mut layers = Vec::<ConfigLayerEntry>::new();
+
+    let product_default_layer = product_default_layer
+        .get()
+        .await
+        .map_err(io::Error::other)?;
+    if let Some(product_default_layer) = product_default_layer.into_config_layer() {
+        layers.push(product_default_layer);
+    }
 
     let cli_overrides_layer = if cli_overrides.is_empty() {
         None

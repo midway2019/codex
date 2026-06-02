@@ -1040,6 +1040,7 @@ mod tests {
                 "https://chatgpt.com/backend-api/".to_string(),
             )
             .await,
+            product_default_layer: Default::default(),
             feedback: codex_feedback::CodexFeedback::new(),
             log_db: None,
             state_db: None,

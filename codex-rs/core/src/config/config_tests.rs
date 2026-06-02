@@ -6,6 +6,7 @@ use crate::config::edit::apply_blocking;
 use assert_matches::assert_matches;
 use codex_config::CONFIG_TOML_FILE;
 use codex_config::ConfigLayerEntry;
+use codex_config::ProductDefaultLayer;
 use codex_config::ProfileV2Name;
 use codex_config::RequirementSource;
 use codex_config::config_toml::AgentRoleToml;
@@ -9400,6 +9401,98 @@ async fn feature_requirements_normalize_effective_feature_values() -> std::io::R
         "{:?}",
         config.startup_warnings
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn product_default_layer_sets_plugin_sharing_from_delivered_config() -> std::io::Result<()> {
+    for (contents, expected_enabled) in [
+        ("[features]\nplugin_sharing = false\n", false),
+        ("[features]\nplugin_sharing = true\n", true),
+    ] {
+        let codex_home = TempDir::new()?;
+        let config = ConfigBuilder::without_managed_config_for_tests()
+            .codex_home(codex_home.path().to_path_buf())
+            .product_default_layer(
+                ProductDefaultLayer::from_toml_str(contents).expect("valid product defaults"),
+            )
+            .build()
+            .await?;
+
+        assert_eq!(
+            config.features.enabled(Feature::PluginSharing),
+            expected_enabled,
+            "unexpected plugin_sharing default for {contents}"
+        );
+        assert_eq!(
+            config
+                .config_layer_stack
+                .get_layers(
+                    codex_config::ConfigLayerStackOrdering::LowestPrecedenceFirst,
+                    /*include_disabled*/ false,
+                )
+                .first()
+                .map(|layer| &layer.name),
+            Some(&codex_config::ConfigLayerSource::ProductDefaultLayer)
+        );
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn user_config_overrides_product_default_layer() -> std::io::Result<()> {
+    let codex_home = TempDir::new()?;
+    std::fs::write(
+        codex_home.path().join(CONFIG_TOML_FILE),
+        r#"[features]
+plugin_sharing = true
+"#,
+    )?;
+
+    let config = ConfigBuilder::without_managed_config_for_tests()
+        .codex_home(codex_home.path().to_path_buf())
+        .product_default_layer(
+            ProductDefaultLayer::from_toml_str("[features]\nplugin_sharing = false\n")
+                .expect("valid product defaults"),
+        )
+        .build()
+        .await?;
+
+    assert!(config.features.enabled(Feature::PluginSharing));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn requirements_override_product_default_layer_and_user_config() -> std::io::Result<()> {
+    let codex_home = TempDir::new()?;
+    std::fs::write(
+        codex_home.path().join(CONFIG_TOML_FILE),
+        r#"[features]
+plugin_sharing = true
+"#,
+    )?;
+
+    let config = ConfigBuilder::without_managed_config_for_tests()
+        .codex_home(codex_home.path().to_path_buf())
+        .product_default_layer(
+            ProductDefaultLayer::from_toml_str("[features]\nplugin_sharing = true\n")
+                .expect("valid product defaults"),
+        )
+        .cloud_requirements(CloudRequirementsLoader::new(async {
+            Ok(Some(codex_config::ConfigRequirementsToml {
+                feature_requirements: Some(codex_config::FeatureRequirementsToml {
+                    entries: BTreeMap::from([("plugin_sharing".to_string(), false)]),
+                }),
+                ..Default::default()
+            }))
+        }))
+        .build()
+        .await?;
+
+    assert!(!config.features.enabled(Feature::PluginSharing));
 
     Ok(())
 }

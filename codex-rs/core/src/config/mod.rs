@@ -18,6 +18,8 @@ use codex_config::FeatureRequirementsToml;
 use codex_config::McpServerIdentity;
 use codex_config::McpServerRequirement;
 use codex_config::PluginRequirementsToml;
+use codex_config::ProductDefaultLayer;
+use codex_config::ProductDefaultLayerLoader;
 use codex_config::ProfileV2Name;
 use codex_config::ResidencyRequirement;
 use codex_config::SandboxModeRequirement;
@@ -1110,6 +1112,7 @@ pub struct ConfigBuilder {
     cli_overrides: Option<Vec<(String, TomlValue)>>,
     harness_overrides: Option<ConfigOverrides>,
     loader_overrides: Option<LoaderOverrides>,
+    product_default_layer: ProductDefaultLayerLoader,
     strict_config: bool,
     cloud_requirements: CloudRequirementsLoader,
     thread_config_loader: Option<Arc<dyn ThreadConfigLoader>>,
@@ -1134,6 +1137,19 @@ impl ConfigBuilder {
 
     pub fn loader_overrides(mut self, loader_overrides: LoaderOverrides) -> Self {
         self.loader_overrides = Some(loader_overrides);
+        self
+    }
+
+    pub fn product_default_layer(mut self, product_default_layer: ProductDefaultLayer) -> Self {
+        self.product_default_layer = ProductDefaultLayerLoader::from_layer(product_default_layer);
+        self
+    }
+
+    pub fn product_default_layer_loader(
+        mut self,
+        product_default_layer: ProductDefaultLayerLoader,
+    ) -> Self {
+        self.product_default_layer = product_default_layer;
         self
     }
 
@@ -1171,6 +1187,7 @@ impl ConfigBuilder {
             cli_overrides,
             harness_overrides,
             loader_overrides,
+            product_default_layer,
             strict_config,
             cloud_requirements,
             thread_config_loader,
@@ -1189,6 +1206,7 @@ impl ConfigBuilder {
             None => AbsolutePathBuf::current_dir()?,
         };
         harness_overrides.cwd = Some(cwd.to_path_buf());
+        let product_default_layer_for_lock = product_default_layer.clone();
         let config_layer_stack = load_config_layers_state(
             LOCAL_FS.as_ref(),
             &codex_home,
@@ -1196,6 +1214,7 @@ impl ConfigBuilder {
             &cli_overrides,
             ConfigLoadOptions {
                 loader_overrides,
+                product_default_layer,
                 strict_config,
             },
             cloud_requirements,
@@ -1245,8 +1264,18 @@ impl ConfigBuilder {
             let expected_lock_config = lockfile_toml.clone();
             let lock_layer = lock_layer_from_config(config_lock_load_path, &lockfile_toml)?;
             let lock_config_toml = config_without_lock_controls(&lockfile_toml.config);
+            let mut lock_layers = Vec::new();
+            if let Some(product_default_layer) = product_default_layer_for_lock
+                .get()
+                .await
+                .map_err(std::io::Error::other)?
+                .into_config_layer()
+            {
+                lock_layers.push(product_default_layer);
+            }
+            lock_layers.push(lock_layer);
             let lock_config_layer_stack = ConfigLayerStack::new(
-                vec![lock_layer],
+                lock_layers,
                 config_layer_stack.requirements().clone(),
                 config_layer_stack.requirements_toml().clone(),
             )?;
@@ -1491,22 +1520,48 @@ impl Config {
         codex_home: PathBuf,
         cli_overrides: Vec<(String, TomlValue)>,
     ) -> std::io::Result<Self> {
+        Self::load_default_with_cli_overrides_for_codex_home_and_product_default_layer(
+            codex_home,
+            cli_overrides,
+            ProductDefaultLayerLoader::default(),
+        )
+        .await
+    }
+
+    pub async fn load_default_with_cli_overrides_for_codex_home_and_product_default_layer(
+        codex_home: PathBuf,
+        cli_overrides: Vec<(String, TomlValue)>,
+        product_default_layer: ProductDefaultLayerLoader,
+    ) -> std::io::Result<Self> {
         let mut merged = toml::Value::try_from(ConfigToml::default()).map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("failed to serialize default config: {e}"),
             )
         })?;
+        let product_default_config_layer = product_default_layer
+            .get()
+            .await
+            .map_err(std::io::Error::other)?
+            .into_config_layer();
+        if let Some(product_default_config_layer) = product_default_config_layer.as_ref() {
+            codex_config::merge_toml_values(&mut merged, &product_default_config_layer.config);
+        }
         let cli_layer = codex_config::build_cli_overrides_layer(&cli_overrides);
         codex_config::merge_toml_values(&mut merged, &cli_layer);
         let codex_home = AbsolutePathBuf::from_absolute_path_checked(codex_home)?;
         let config_toml = deserialize_config_toml_with_base(merged, &codex_home)?;
+        let config_layers = product_default_config_layer.into_iter().collect::<Vec<_>>();
         Self::load_config_with_layer_stack(
             LOCAL_FS.as_ref(),
             config_toml,
             ConfigOverrides::default(),
             codex_home,
-            ConfigLayerStack::default(),
+            ConfigLayerStack::new(
+                config_layers,
+                ConfigRequirements::default(),
+                ConfigRequirementsToml::default(),
+            )?,
         )
         .await
     }

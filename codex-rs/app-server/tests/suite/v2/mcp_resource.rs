@@ -202,6 +202,7 @@ async fn mcp_resource_read_returns_error_for_unknown_thread() -> Result<()> {
         loader_overrides,
         strict_config: false,
         cloud_requirements: CloudRequirementsLoader::default(),
+        product_default_layer: Default::default(),
         thread_config_loader: Arc::new(codex_config::NoopThreadConfigLoader),
         feedback: CodexFeedback::new(),
         log_db: None,
