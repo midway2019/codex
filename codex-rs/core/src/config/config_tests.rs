@@ -9498,6 +9498,32 @@ plugin_sharing = true
 }
 
 #[tokio::test]
+async fn requirements_enable_plugin_sharing_over_disabled_product_default() -> std::io::Result<()> {
+    let codex_home = TempDir::new()?;
+
+    let config = ConfigBuilder::without_managed_config_for_tests()
+        .codex_home(codex_home.path().to_path_buf())
+        .product_default_layer(
+            ProductDefaultLayer::from_toml_str("[features]\nplugin_sharing = false\n")
+                .expect("valid product defaults"),
+        )
+        .cloud_requirements(CloudRequirementsLoader::new(async {
+            Ok(Some(codex_config::ConfigRequirementsToml {
+                feature_requirements: Some(codex_config::FeatureRequirementsToml {
+                    entries: BTreeMap::from([("plugin_sharing".to_string(), true)]),
+                }),
+                ..Default::default()
+            }))
+        }))
+        .build()
+        .await?;
+
+    assert!(config.features.enabled(Feature::PluginSharing));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn feature_requirements_auto_review_disables_guardian_approval() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
 
