@@ -72,6 +72,10 @@ fn trace_field_value<'a>(fields: &'a [(&str, &str)], key: &str) -> Option<&'a st
         .find_map(|(field_key, value)| (*field_key == key).then_some(*value))
 }
 
+fn duration_ms_i64(duration: Duration) -> i64 {
+    duration.as_millis().min(i64::MAX as u128) as i64
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AuthEnvTelemetryMetadata {
     pub openai_api_key_env_present: bool,
@@ -995,6 +999,36 @@ impl SessionTelemetry {
             call_id = %call_id,
             decision = %decision.clone().to_string().to_lowercase(),
             source = %source.to_string(),
+        );
+    }
+
+    pub fn sandbox_outcome(
+        &self,
+        tool_name: &str,
+        call_id: &str,
+        outcome: &str,
+        initial_duration: Duration,
+        escalated_duration: Option<Duration>,
+    ) {
+        let initial_duration_ms = duration_ms_i64(initial_duration);
+        let escalated_duration_ms = escalated_duration.map(duration_ms_i64);
+        log_event!(
+            self,
+            event.name = "codex.sandbox_outcome",
+            tool_name = %tool_name,
+            call_id = %call_id,
+            outcome = %outcome,
+            initial_duration_ms = initial_duration_ms,
+            escalated_duration_ms = escalated_duration_ms,
+        );
+        trace_event!(
+            self,
+            event.name = "codex.sandbox_outcome",
+            tool_name = %tool_name,
+            call_id = %call_id,
+            outcome = %outcome,
+            initial_duration_ms = initial_duration_ms,
+            escalated_duration_ms = escalated_duration_ms,
         );
     }
 
