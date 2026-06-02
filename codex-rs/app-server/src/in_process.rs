@@ -78,7 +78,7 @@ use codex_app_server_protocol::Result;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_arg0::Arg0DispatchPaths;
-use codex_config::CloudRequirementsLoader;
+use codex_config::CloudConfigBundleLoader;
 use codex_config::LoaderOverrides;
 use codex_config::ProductDefaultsLoader;
 use codex_config::ThreadConfigLoader;
@@ -126,10 +126,10 @@ pub struct InProcessStartArgs {
     pub loader_overrides: LoaderOverrides,
     /// Whether config API paths should reject unknown config fields.
     pub strict_config: bool,
-    /// Preloaded cloud requirements provider.
-    pub cloud_requirements: CloudRequirementsLoader,
     /// Product-owned default config layer derived before app-server startup.
     pub product_defaults: ProductDefaultsLoader,
+    /// Preloaded cloud config bundle provider.
+    pub cloud_config_bundle: CloudConfigBundleLoader,
     /// Loader used to fetch typed thread config sources before a thread starts.
     pub thread_config_loader: Arc<dyn ThreadConfigLoader>,
     /// Feedback sink used by app-server/core telemetry and logs.
@@ -419,8 +419,8 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             cli_overrides: args.cli_overrides,
             loader_overrides: args.loader_overrides,
             strict_config: args.strict_config,
-            cloud_requirements: args.cloud_requirements,
             product_defaults: args.product_defaults,
+            cloud_config_bundle: args.cloud_config_bundle,
             arg0_paths: args.arg0_paths.clone(),
             thread_config_loader: args.thread_config_loader,
         });
@@ -777,8 +777,8 @@ mod tests {
             cli_overrides: Vec::new(),
             loader_overrides: LoaderOverrides::default(),
             strict_config: false,
-            cloud_requirements: CloudRequirementsLoader::default(),
             product_defaults: ProductDefaultsLoader::default(),
+            cloud_config_bundle: CloudConfigBundleLoader::default(),
             thread_config_loader: Arc::new(codex_config::NoopThreadConfigLoader),
             feedback: CodexFeedback::new(),
             log_db: None,

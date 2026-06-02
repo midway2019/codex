@@ -41,7 +41,7 @@ use codex_app_server_protocol::TurnStartResponse;
 use codex_app_server_protocol::TurnStatus;
 use codex_app_server_protocol::UserInput;
 use codex_arg0::Arg0DispatchPaths;
-use codex_config::CloudRequirementsLoader;
+use codex_config::CloudConfigBundleLoader;
 use codex_config::LoaderOverrides;
 use codex_core::ARCHIVED_SESSIONS_SUBDIR;
 use codex_core::config::ConfigBuilder;
@@ -376,8 +376,8 @@ async fn thread_turns_list_reads_store_history_without_rollout_path() -> Result<
         cli_overrides: Vec::new(),
         loader_overrides,
         strict_config: false,
-        cloud_requirements: CloudRequirementsLoader::default(),
         product_defaults: Default::default(),
+        cloud_config_bundle: CloudConfigBundleLoader::default(),
         thread_config_loader: Arc::new(codex_config::NoopThreadConfigLoader),
         feedback: CodexFeedback::new(),
         log_db: None,
@@ -443,8 +443,8 @@ async fn thread_read_loaded_include_turns_reads_store_history_without_rollout_pa
         cli_overrides: Vec::new(),
         loader_overrides,
         strict_config: false,
-        cloud_requirements: CloudRequirementsLoader::default(),
         product_defaults: Default::default(),
+        cloud_config_bundle: CloudConfigBundleLoader::default(),
         thread_config_loader: Arc::new(codex_config::NoopThreadConfigLoader),
         feedback: CodexFeedback::new(),
         log_db: None,
@@ -530,8 +530,8 @@ async fn thread_list_includes_store_thread_without_rollout_path() -> Result<()> 
         cli_overrides: Vec::new(),
         loader_overrides,
         strict_config: false,
-        cloud_requirements: CloudRequirementsLoader::default(),
         product_defaults: Default::default(),
+        cloud_config_bundle: CloudConfigBundleLoader::default(),
         thread_config_loader: Arc::new(codex_config::NoopThreadConfigLoader),
         feedback: CodexFeedback::new(),
         log_db: None,
@@ -1365,6 +1365,7 @@ async fn seed_pathless_store_thread(
             thread_source: None,
             base_instructions: BaseInstructions::default(),
             dynamic_tools: Vec::new(),
+            multi_agent_version: None,
             metadata: ThreadPersistenceMetadata {
                 cwd: None,
                 model_provider: "test-provider".to_string(),

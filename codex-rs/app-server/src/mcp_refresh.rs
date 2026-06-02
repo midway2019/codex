@@ -105,7 +105,7 @@ mod tests {
     use crate::extensions::thread_extensions;
     use async_trait::async_trait;
     use codex_arg0::Arg0DispatchPaths;
-    use codex_config::CloudRequirementsLoader;
+    use codex_config::CloudConfigBundleLoader;
     use codex_config::LoaderOverrides;
     use codex_config::ThreadConfigContext;
     use codex_config::ThreadConfigLoadError;
@@ -215,8 +215,8 @@ mod tests {
             cli_overrides: Vec::new(),
             loader_overrides: LoaderOverrides::without_managed_config_for_tests(),
             strict_config: false,
-            cloud_requirements: CloudRequirementsLoader::default(),
             product_defaults: Default::default(),
+            cloud_config_bundle: CloudConfigBundleLoader::default(),
             arg0_paths: Arg0DispatchPaths::default(),
             thread_config_loader: loader.clone(),
         });

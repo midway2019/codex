@@ -1379,7 +1379,7 @@ the client can offer session-scoped and/or persistent approval choices.
 
 ### Permission requests
 
-The built-in `request_permissions` tool sends an `item/permissions/requestApproval` JSON-RPC request to the client with the requested permission profile. This v2 payload mirrors the command-execution `additionalPermissions` shape: it can request network access and additional filesystem access. The `cwd` field identifies the directory used to resolve project-root permissions and relative deny globs.
+The built-in `request_permissions` tool sends an `item/permissions/requestApproval` JSON-RPC request to the client with the requested permission profile. This v2 payload mirrors the command-execution `additionalPermissions` shape: it can request network access and additional filesystem access. The `environmentId` and `cwd` fields identify the environment and directory used to resolve project-root permissions and relative deny globs.
 
 ```json
 {
@@ -1389,6 +1389,7 @@ The built-in `request_permissions` tool sends an `item/permissions/requestApprov
     "threadId": "thr_123",
     "turnId": "turn_123",
     "itemId": "call_123",
+    "environmentId": "local",
     "cwd": "/Users/me/project",
     "reason": "Select a workspace root",
     "permissions": {
@@ -1715,6 +1716,20 @@ The server also emits `app/list/updated` notifications whenever either source (a
   }
 }
 ```
+
+Connected apps may override the thread's approval reviewer in `config.toml`.
+When omitted, the app inherits the top-level `approvals_reviewer` value:
+
+```toml
+approvals_reviewer = "auto_review"
+
+[apps.demo-app]
+approvals_reviewer = "user"
+```
+
+Setting the app value to `"user"` routes its approval prompts to the user
+instead of Guardian; setting it to `"auto_review"` opts that app into Guardian
+review when allowed by configuration requirements.
 
 Invoke an app by inserting `$<app-slug>` in the text input. The slug is derived from the app name and lowercased with non-alphanumeric characters replaced by `-` (for example, "Demo App" becomes `$demo-app`). Add a `mention` input item (recommended) so the server uses the exact `app://<connector-id>` path rather than guessing by name. Plugins use the same `mention` item shape, but with `plugin://<plugin-name>@<marketplace-name>` paths from `plugin/installed` or `plugin/list`.
 

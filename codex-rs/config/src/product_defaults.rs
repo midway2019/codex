@@ -1,4 +1,4 @@
-use crate::CloudRequirementsLoadError;
+use crate::CloudConfigBundleLoadError;
 use crate::merge_toml_values;
 use crate::state::ConfigLayerEntry;
 use codex_app_server_protocol::ConfigLayerSource;
@@ -96,13 +96,13 @@ impl ProductDefaults {
 
 #[derive(Clone)]
 pub struct ProductDefaultsLoader {
-    fut: Shared<BoxFuture<'static, Result<ProductDefaults, CloudRequirementsLoadError>>>,
+    fut: Shared<BoxFuture<'static, Result<ProductDefaults, CloudConfigBundleLoadError>>>,
 }
 
 impl ProductDefaultsLoader {
     pub fn new<F>(fut: F) -> Self
     where
-        F: Future<Output = Result<ProductDefaults, CloudRequirementsLoadError>> + Send + 'static,
+        F: Future<Output = Result<ProductDefaults, CloudConfigBundleLoadError>> + Send + 'static,
     {
         Self {
             fut: fut.boxed().shared(),
@@ -113,7 +113,7 @@ impl ProductDefaultsLoader {
         Self::new(async move { Ok(defaults) })
     }
 
-    pub async fn get(&self) -> Result<ProductDefaults, CloudRequirementsLoadError> {
+    pub async fn get(&self) -> Result<ProductDefaults, CloudConfigBundleLoadError> {
         self.fut.clone().await
     }
 }
