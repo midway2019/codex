@@ -974,6 +974,7 @@ async fn refresh_from_remote_updates_cached_bundle() {
 fn bundle_response_conversion_preserves_fragment_order() {
     let response = ConfigBundleResponse {
         config_toml: Some(Some(Box::new(codex_backend_client::DeliveredConfigToml {
+            product_defaults: None,
             enterprise_managed: Some(Some(vec![
                 DeliveredTomlFragment::new(
                     "cfg_high".to_string(),
