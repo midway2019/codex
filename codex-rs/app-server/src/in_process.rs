@@ -80,7 +80,7 @@ use codex_app_server_protocol::ServerRequest;
 use codex_arg0::Arg0DispatchPaths;
 use codex_config::CloudRequirementsLoader;
 use codex_config::LoaderOverrides;
-use codex_config::ProductDefaultLayerLoader;
+use codex_config::ProductDefaultsLoader;
 use codex_config::ThreadConfigLoader;
 use codex_core::config::Config;
 use codex_core::resolve_installation_id;
@@ -129,7 +129,7 @@ pub struct InProcessStartArgs {
     /// Preloaded cloud requirements provider.
     pub cloud_requirements: CloudRequirementsLoader,
     /// Product-owned default config layer derived before app-server startup.
-    pub product_default_layer: ProductDefaultLayerLoader,
+    pub product_defaults: ProductDefaultsLoader,
     /// Loader used to fetch typed thread config sources before a thread starts.
     pub thread_config_loader: Arc<dyn ThreadConfigLoader>,
     /// Feedback sink used by app-server/core telemetry and logs.
@@ -420,7 +420,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             loader_overrides: args.loader_overrides,
             strict_config: args.strict_config,
             cloud_requirements: args.cloud_requirements,
-            product_default_layer: args.product_default_layer,
+            product_defaults: args.product_defaults,
             arg0_paths: args.arg0_paths.clone(),
             thread_config_loader: args.thread_config_loader,
         });
@@ -778,7 +778,7 @@ mod tests {
             loader_overrides: LoaderOverrides::default(),
             strict_config: false,
             cloud_requirements: CloudRequirementsLoader::default(),
-            product_default_layer: ProductDefaultLayerLoader::default(),
+            product_defaults: ProductDefaultsLoader::default(),
             thread_config_loader: Arc::new(codex_config::NoopThreadConfigLoader),
             feedback: CodexFeedback::new(),
             log_db: None,

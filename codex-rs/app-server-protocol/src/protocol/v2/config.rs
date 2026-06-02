@@ -28,7 +28,7 @@ use ts_rs::TS;
 pub enum ConfigLayerSource {
     /// Product-owned default config supplied by OpenAI. This is lower
     /// precedence than all customer/admin/user config layers.
-    ProductDefaultLayer,
+    ProductDefaults,
 
     /// Managed preferences layer delivered by MDM (macOS only).
     #[serde(rename_all = "camelCase")]
@@ -105,7 +105,7 @@ impl ConfigLayerSource {
     /// from a layer with a lower precedence.
     pub fn precedence(&self) -> i16 {
         match self {
-            ConfigLayerSource::ProductDefaultLayer => -10,
+            ConfigLayerSource::ProductDefaults => -10,
             ConfigLayerSource::Mdm { .. } => 0,
             ConfigLayerSource::System { .. } => 10,
             ConfigLayerSource::EnterpriseManaged { .. } => 15,

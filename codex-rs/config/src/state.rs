@@ -5,7 +5,7 @@ use super::fingerprint::record_origins;
 use super::fingerprint::version_for_toml;
 use super::key_aliases::normalized_with_key_aliases;
 use super::merge::merge_toml_values;
-use crate::ProductDefaultLayerLoader;
+use crate::ProductDefaultsLoader;
 use crate::ProfileV2Name;
 use codex_app_server_protocol::ConfigLayer;
 use codex_app_server_protocol::ConfigLayerMetadata;
@@ -21,7 +21,7 @@ use toml::Value as TomlValue;
 #[derive(Debug, Default, Clone)]
 pub struct ConfigLoadOptions {
     pub loader_overrides: LoaderOverrides,
-    pub product_default_layer: ProductDefaultLayerLoader,
+    pub product_defaults: ProductDefaultsLoader,
     pub strict_config: bool,
 }
 
@@ -29,7 +29,7 @@ impl From<LoaderOverrides> for ConfigLoadOptions {
     fn from(loader_overrides: LoaderOverrides) -> Self {
         Self {
             loader_overrides,
-            product_default_layer: ProductDefaultLayerLoader::default(),
+            product_defaults: ProductDefaultsLoader::default(),
             strict_config: false,
         }
     }
@@ -202,7 +202,7 @@ impl ConfigLayerEntry {
     // Get the `.codex/` folder associated with this config layer, if any.
     pub fn config_folder(&self) -> Option<AbsolutePathBuf> {
         match &self.name {
-            ConfigLayerSource::ProductDefaultLayer => None,
+            ConfigLayerSource::ProductDefaults => None,
             ConfigLayerSource::Mdm { .. } => None,
             ConfigLayerSource::System { file } => file.parent(),
             ConfigLayerSource::EnterpriseManaged { .. } => None,

@@ -597,7 +597,7 @@ mod thread_processor_behavior_tests {
             loader_overrides: LoaderOverrides::default(),
             strict_config: false,
             cloud_requirements: CloudRequirementsLoader::default(),
-            product_default_layer: Default::default(),
+            product_defaults: Default::default(),
             arg0_paths: Arg0DispatchPaths::default(),
             thread_config_loader: Arc::new(StaticThreadConfigLoader::new(vec![
                 ThreadConfigSource::Session(SessionThreadConfig {

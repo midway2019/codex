@@ -16,11 +16,11 @@ use toml::map::Map;
 /// This is intentionally represented as a normal config layer so the existing
 /// config merge and requirements enforcement paths determine final behavior.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ProductDefaultLayer {
+pub struct ProductDefaults {
     config: TomlValue,
 }
 
-impl Default for ProductDefaultLayer {
+impl Default for ProductDefaults {
     fn default() -> Self {
         Self {
             config: TomlValue::Table(Map::new()),
@@ -28,7 +28,7 @@ impl Default for ProductDefaultLayer {
     }
 }
 
-impl ProductDefaultLayer {
+impl ProductDefaults {
     pub fn from_config(config: TomlValue) -> Self {
         Self { config }
     }
@@ -87,7 +87,7 @@ impl ProductDefaultLayer {
             None
         } else {
             Some(ConfigLayerEntry::new(
-                ConfigLayerSource::ProductDefaultLayer,
+                ConfigLayerSource::ProductDefaults,
                 self.config,
             ))
         }
@@ -95,39 +95,37 @@ impl ProductDefaultLayer {
 }
 
 #[derive(Clone)]
-pub struct ProductDefaultLayerLoader {
-    fut: Shared<BoxFuture<'static, Result<ProductDefaultLayer, CloudRequirementsLoadError>>>,
+pub struct ProductDefaultsLoader {
+    fut: Shared<BoxFuture<'static, Result<ProductDefaults, CloudRequirementsLoadError>>>,
 }
 
-impl ProductDefaultLayerLoader {
+impl ProductDefaultsLoader {
     pub fn new<F>(fut: F) -> Self
     where
-        F: Future<Output = Result<ProductDefaultLayer, CloudRequirementsLoadError>>
-            + Send
-            + 'static,
+        F: Future<Output = Result<ProductDefaults, CloudRequirementsLoadError>> + Send + 'static,
     {
         Self {
             fut: fut.boxed().shared(),
         }
     }
 
-    pub fn from_layer(layer: ProductDefaultLayer) -> Self {
-        Self::new(async move { Ok(layer) })
+    pub fn from_defaults(defaults: ProductDefaults) -> Self {
+        Self::new(async move { Ok(defaults) })
     }
 
-    pub async fn get(&self) -> Result<ProductDefaultLayer, CloudRequirementsLoadError> {
+    pub async fn get(&self) -> Result<ProductDefaults, CloudRequirementsLoadError> {
         self.fut.clone().await
     }
 }
 
-impl Default for ProductDefaultLayerLoader {
+impl Default for ProductDefaultsLoader {
     fn default() -> Self {
-        Self::from_layer(ProductDefaultLayer::default())
+        Self::from_defaults(ProductDefaults::default())
     }
 }
 
-impl fmt::Debug for ProductDefaultLayerLoader {
+impl fmt::Debug for ProductDefaultsLoader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ProductDefaultLayerLoader").finish()
+        f.debug_struct("ProductDefaultsLoader").finish()
     }
 }

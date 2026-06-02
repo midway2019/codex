@@ -27,16 +27,16 @@
           "properties": {
             "type": {
               "enum": [
-                "productDefaultLayer"
+                "productDefaults"
               ],
-              "title": "ProductDefaultLayerConfigLayerSourceType",
+              "title": "ProductDefaultsConfigLayerSourceType",
               "type": "string"
             }
           },
           "required": [
             "type"
           ],
-          "title": "ProductDefaultLayerConfigLayerSource",
+          "title": "ProductDefaultsConfigLayerSource",
           "type": "object"
         },
         {

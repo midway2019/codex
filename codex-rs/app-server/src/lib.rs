@@ -461,7 +461,7 @@ pub async fn run_main_with_transport_options(
         loader_overrides,
         strict_config,
         cloud_requirements: Default::default(),
-        product_default_layer: Default::default(),
+        product_defaults: Default::default(),
         arg0_paths: arg0_paths.clone(),
         thread_config_loader: Arc::new(NoopThreadConfigLoader),
     });

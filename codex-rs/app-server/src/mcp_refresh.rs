@@ -216,7 +216,7 @@ mod tests {
             loader_overrides: LoaderOverrides::without_managed_config_for_tests(),
             strict_config: false,
             cloud_requirements: CloudRequirementsLoader::default(),
-            product_default_layer: Default::default(),
+            product_defaults: Default::default(),
             arg0_paths: Arg0DispatchPaths::default(),
             thread_config_loader: loader.clone(),
         });

@@ -46,7 +46,7 @@ use codex_arg0::Arg0DispatchPaths;
 use codex_config::CloudRequirementsLoader;
 use codex_config::LoaderOverrides;
 use codex_config::NoopThreadConfigLoader;
-use codex_config::ProductDefaultLayerLoader;
+use codex_config::ProductDefaultsLoader;
 use codex_config::RemoteThreadConfigLoader;
 use codex_config::ThreadConfigLoader;
 use codex_core::config::Config;
@@ -343,7 +343,7 @@ pub struct InProcessClientStartArgs {
     /// Preloaded cloud requirements provider.
     pub cloud_requirements: CloudRequirementsLoader,
     /// Product-owned default config layer.
-    pub product_default_layer: ProductDefaultLayerLoader,
+    pub product_defaults: ProductDefaultsLoader,
     /// Feedback sink used by app-server/core telemetry and logs.
     pub feedback: CodexFeedback,
     /// SQLite tracing layer used to flush recently emitted logs before feedback upload.
@@ -410,7 +410,7 @@ impl InProcessClientStartArgs {
             loader_overrides: self.loader_overrides,
             strict_config: self.strict_config,
             cloud_requirements: self.cloud_requirements,
-            product_default_layer: self.product_default_layer,
+            product_defaults: self.product_defaults,
             thread_config_loader,
             feedback: self.feedback,
             log_db: self.log_db,
@@ -1040,7 +1040,7 @@ mod tests {
             loader_overrides: LoaderOverrides::default(),
             strict_config: false,
             cloud_requirements: CloudRequirementsLoader::default(),
-            product_default_layer: ProductDefaultLayerLoader::default(),
+            product_defaults: ProductDefaultsLoader::default(),
             feedback: CodexFeedback::new(),
             log_db: None,
             state_db: Some(state_db),
@@ -2205,7 +2205,7 @@ mod tests {
             loader_overrides: LoaderOverrides::default(),
             strict_config: false,
             cloud_requirements: CloudRequirementsLoader::default(),
-            product_default_layer: ProductDefaultLayerLoader::default(),
+            product_defaults: ProductDefaultsLoader::default(),
             feedback: CodexFeedback::new(),
             log_db: None,
             state_db: None,
@@ -2247,7 +2247,7 @@ mod tests {
             loader_overrides: LoaderOverrides::default(),
             strict_config: false,
             cloud_requirements: CloudRequirementsLoader::default(),
-            product_default_layer: ProductDefaultLayerLoader::default(),
+            product_defaults: ProductDefaultsLoader::default(),
             feedback: CodexFeedback::new(),
             log_db: None,
             state_db: None,

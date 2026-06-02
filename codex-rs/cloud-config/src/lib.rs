@@ -19,8 +19,8 @@ use codex_config::CloudRequirementsLoadError;
 use codex_config::CloudRequirementsLoadErrorCode;
 use codex_config::CloudRequirementsLoader;
 use codex_config::ConfigRequirementsToml;
-use codex_config::ProductDefaultLayer;
-use codex_config::ProductDefaultLayerLoader;
+use codex_config::ProductDefaults;
+use codex_config::ProductDefaultsLoader;
 use codex_config::types::AuthCredentialsStoreMode;
 use codex_core::util::backoff;
 use codex_login::AuthManager;
@@ -744,7 +744,7 @@ pub async fn cloud_requirements_loader_for_storage(
     credentials_store_mode: AuthCredentialsStoreMode,
     chatgpt_base_url: String,
 ) -> CloudRequirementsLoader {
-    cloud_requirements_loader_and_product_default_layer_for_storage(
+    cloud_requirements_loader_and_product_defaults_for_storage(
         codex_home,
         enable_codex_api_key_env,
         credentials_store_mode,
@@ -754,12 +754,12 @@ pub async fn cloud_requirements_loader_for_storage(
     .0
 }
 
-pub async fn cloud_requirements_loader_and_product_default_layer_for_storage(
+pub async fn cloud_requirements_loader_and_product_defaults_for_storage(
     codex_home: PathBuf,
     enable_codex_api_key_env: bool,
     credentials_store_mode: AuthCredentialsStoreMode,
     chatgpt_base_url: String,
-) -> (CloudRequirementsLoader, ProductDefaultLayerLoader) {
+) -> (CloudRequirementsLoader, ProductDefaultsLoader) {
     let auth_manager = AuthManager::shared(
         codex_home.clone(),
         enable_codex_api_key_env,
@@ -767,37 +767,36 @@ pub async fn cloud_requirements_loader_and_product_default_layer_for_storage(
         Some(chatgpt_base_url.clone()),
     )
     .await;
-    let product_default_layer =
-        product_default_layer_loader(auth_manager.clone(), chatgpt_base_url.clone());
+    let product_defaults = product_defaults_loader(auth_manager.clone(), chatgpt_base_url.clone());
     (
         cloud_requirements_loader(auth_manager, chatgpt_base_url, codex_home),
-        product_default_layer,
+        product_defaults,
     )
 }
 
-pub fn product_default_layer_loader(
+pub fn product_defaults_loader(
     auth_manager: Arc<AuthManager>,
     chatgpt_base_url: String,
-) -> ProductDefaultLayerLoader {
-    ProductDefaultLayerLoader::new(fetch_product_default_layer(auth_manager, chatgpt_base_url))
+) -> ProductDefaultsLoader {
+    ProductDefaultsLoader::new(fetch_product_defaults(auth_manager, chatgpt_base_url))
 }
 
-async fn fetch_product_default_layer(
+async fn fetch_product_defaults(
     auth_manager: Arc<AuthManager>,
     chatgpt_base_url: String,
-) -> Result<ProductDefaultLayer, CloudRequirementsLoadError> {
+) -> Result<ProductDefaults, CloudRequirementsLoadError> {
     let Some(auth) = auth_manager.auth().await else {
-        return Ok(ProductDefaultLayer::default());
+        return Ok(ProductDefaults::default());
     };
     if !product_defaults_eligible_auth(&auth) {
-        return Ok(ProductDefaultLayer::default());
+        return Ok(ProductDefaults::default());
     }
 
     let client = match BackendClient::from_auth(chatgpt_base_url, &auth) {
         Ok(client) => client,
         Err(err) => {
             tracing::warn!(error = %err, "Failed to construct backend client for product defaults; continuing without product defaults");
-            return Ok(ProductDefaultLayer::default());
+            return Ok(ProductDefaults::default());
         }
     };
 
@@ -805,14 +804,14 @@ async fn fetch_product_default_layer(
         Ok(Ok(response)) => response,
         Ok(Err(err)) => {
             tracing::warn!(error = %err, "Failed to fetch product defaults; continuing without product defaults");
-            return Ok(ProductDefaultLayer::default());
+            return Ok(ProductDefaults::default());
         }
         Err(_) => {
             tracing::warn!(
                 timeout_secs = PRODUCT_DEFAULTS_TIMEOUT.as_secs(),
                 "Timed out fetching product defaults; continuing without product defaults"
             );
-            return Ok(ProductDefaultLayer::default());
+            return Ok(ProductDefaults::default());
         }
     };
 
@@ -822,11 +821,11 @@ async fn fetch_product_default_layer(
         .and_then(|config_toml| config_toml.product_defaults.flatten())
         .unwrap_or_default();
     let contents = fragments.iter().map(|fragment| fragment.contents.as_str());
-    match ProductDefaultLayer::from_toml_fragments(contents) {
-        Ok(product_default_layer) => Ok(product_default_layer),
+    match ProductDefaults::from_toml_fragments(contents) {
+        Ok(product_defaults) => Ok(product_defaults),
         Err(err) => {
             tracing::error!(error = %err, "Failed to parse product defaults; continuing without product defaults");
-            Ok(ProductDefaultLayer::default())
+            Ok(ProductDefaults::default())
         }
     }
 }

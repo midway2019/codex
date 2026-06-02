@@ -350,7 +350,7 @@ fn skill_roots_from_layer_stack_inner(
                 });
             }
             ConfigLayerSource::Mdm { .. }
-            | ConfigLayerSource::ProductDefaultLayer
+            | ConfigLayerSource::ProductDefaults
             | ConfigLayerSource::EnterpriseManaged { .. }
             | ConfigLayerSource::SessionFlags
             | ConfigLayerSource::LegacyManagedConfigTomlFromFile { .. }

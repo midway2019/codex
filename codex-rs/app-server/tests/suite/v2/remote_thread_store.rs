@@ -77,7 +77,7 @@ async fn thread_start_with_non_local_thread_store_does_not_create_local_persiste
         loader_overrides,
         strict_config: false,
         cloud_requirements: CloudRequirementsLoader::default(),
-        product_default_layer: Default::default(),
+        product_defaults: Default::default(),
         thread_config_loader: Arc::new(NoopThreadConfigLoader),
         feedback: CodexFeedback::new(),
         log_db: None,
