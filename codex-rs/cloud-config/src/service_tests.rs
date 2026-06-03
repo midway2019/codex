@@ -164,6 +164,7 @@ fn chatgpt_auth_json_with_mode(
 fn test_bundle() -> CloudConfigBundle {
     CloudConfigBundle {
         config_toml: CloudConfigTomlBundle {
+            product_defaults: Vec::new(),
             enterprise_managed: vec![test_config_fragment()],
         },
         requirements_toml: CloudRequirementsTomlBundle {
@@ -191,6 +192,7 @@ fn test_requirements_fragment() -> CloudRequirementsFragment {
 fn invalid_config_bundle() -> CloudConfigBundle {
     CloudConfigBundle {
         config_toml: CloudConfigTomlBundle {
+            product_defaults: Vec::new(),
             enterprise_managed: vec![CloudConfigFragment {
                 id: "cfg_invalid".to_string(),
                 name: "Invalid config".to_string(),
@@ -307,6 +309,17 @@ fn bundle_shape_tag_describes_sorted_enterprise_sources() {
     assert_eq!(
         bundle_shape_tag(Some(&CloudConfigBundle {
             config_toml: CloudConfigTomlBundle {
+                product_defaults: vec![test_config_fragment()],
+                enterprise_managed: Vec::new(),
+            },
+            requirements_toml: CloudRequirementsTomlBundle::default(),
+        })),
+        "product_defaults"
+    );
+    assert_eq!(
+        bundle_shape_tag(Some(&CloudConfigBundle {
+            config_toml: CloudConfigTomlBundle {
+                product_defaults: Vec::new(),
                 enterprise_managed: vec![test_config_fragment()],
             },
             requirements_toml: CloudRequirementsTomlBundle::default(),
@@ -325,6 +338,7 @@ fn bundle_shape_tag_describes_sorted_enterprise_sources() {
     assert_eq!(
         bundle_shape_tag(Some(&CloudConfigBundle {
             config_toml: CloudConfigTomlBundle {
+                product_defaults: Vec::new(),
                 enterprise_managed: vec![test_config_fragment()],
             },
             requirements_toml: CloudRequirementsTomlBundle {
@@ -406,8 +420,27 @@ async fn get_bundle_allows_eligible_workspace_plans_and_writes_cache() {
 }
 
 #[tokio::test]
-async fn get_bundle_skips_team_like_usage_based_plan() {
-    let fetcher = Arc::new(StaticBundleClient::new(test_bundle()));
+async fn get_bundle_allows_team_like_usage_based_plan_for_product_defaults() {
+    let bundle = test_bundle();
+    let fetcher = Arc::new(StaticBundleClient::new(bundle.clone()));
+    let codex_home = tempdir().expect("tempdir");
+    let service = CloudConfigBundleService::new(
+        auth_manager_with_plan("self_serve_business_usage_based").await,
+        fetcher.clone(),
+        codex_home.path().to_path_buf(),
+        CLOUD_CONFIG_BUNDLE_TIMEOUT,
+    );
+
+    assert_eq!(service.load_startup_bundle().await, Ok(Some(bundle)));
+    assert_eq!(fetcher.request_count.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn get_bundle_failure_for_team_like_plan_fails_open() {
+    let fetcher = Arc::new(SequenceBundleClient::new(vec![
+        Err(request_error());
+        CLOUD_CONFIG_BUNDLE_MAX_ATTEMPTS
+    ]));
     let codex_home = tempdir().expect("tempdir");
     let service = CloudConfigBundleService::new(
         auth_manager_with_plan("self_serve_business_usage_based").await,
@@ -417,7 +450,10 @@ async fn get_bundle_skips_team_like_usage_based_plan() {
     );
 
     assert_eq!(service.load_startup_bundle().await, Ok(None));
-    assert_eq!(fetcher.request_count.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        fetcher.request_count.load(Ordering::SeqCst),
+        CLOUD_CONFIG_BUNDLE_MAX_ATTEMPTS
+    );
 }
 
 #[tokio::test]
@@ -959,7 +995,11 @@ async fn refresh_from_remote_updates_cached_bundle() {
 fn bundle_response_conversion_preserves_fragment_order() {
     let response = ConfigBundleResponse {
         config_toml: Some(Some(Box::new(codex_backend_client::DeliveredConfigToml {
-            product_defaults: None,
+            product_defaults: Some(Some(vec![DeliveredTomlFragment::new(
+                "cfg_default".to_string(),
+                "Product defaults".to_string(),
+                "model = \"default\"".to_string(),
+            )])),
             enterprise_managed: Some(Some(vec![
                 DeliveredTomlFragment::new(
                     "cfg_high".to_string(),
@@ -988,6 +1028,11 @@ fn bundle_response_conversion_preserves_fragment_order() {
         bundle_from_response(response),
         CloudConfigBundle {
             config_toml: CloudConfigTomlBundle {
+                product_defaults: vec![CloudConfigFragment {
+                    id: "cfg_default".to_string(),
+                    name: "Product defaults".to_string(),
+                    contents: "model = \"default\"".to_string(),
+                }],
                 enterprise_managed: vec![
                     CloudConfigFragment {
                         id: "cfg_high".to_string(),

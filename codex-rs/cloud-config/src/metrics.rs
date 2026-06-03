@@ -63,6 +63,9 @@ pub(crate) fn bundle_shape_tag(bundle: Option<&CloudConfigBundle>) -> String {
     };
 
     let mut sources = Vec::new();
+    if !bundle.config_toml.product_defaults.is_empty() {
+        sources.push("product_defaults");
+    }
     if !bundle.config_toml.enterprise_managed.is_empty() {
         sources.push("enterprise_config");
     }

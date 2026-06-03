@@ -119,10 +119,9 @@ impl ConfigManager {
         auth_manager: Arc<AuthManager>,
         chatgpt_base_url: String,
     ) {
-        let product_defaults =
-            product_defaults_loader(auth_manager.clone(), chatgpt_base_url.clone());
         let loader =
             cloud_config_bundle_loader(auth_manager, chatgpt_base_url, self.codex_home.clone());
+        let product_defaults = product_defaults_loader(loader.clone());
         if let Ok(mut guard) = self.cloud_config_bundle.write() {
             *guard = loader;
         } else {

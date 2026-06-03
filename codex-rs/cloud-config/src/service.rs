@@ -48,9 +48,14 @@ fn cloud_config_eligible_auth(auth: &CodexAuth) -> bool {
     let Some(plan_type) = auth.account_plan_type() else {
         return false;
     };
-    auth.uses_codex_backend()
-        && (plan_type.is_business_like()
-            || matches!(plan_type, PlanType::Enterprise | PlanType::Edu))
+    auth.uses_codex_backend() && plan_type.is_workspace_account()
+}
+
+fn cloud_config_fail_closed_auth(auth: &CodexAuth) -> bool {
+    let Some(plan_type) = auth.account_plan_type() else {
+        return false;
+    };
+    plan_type.is_business_like() || matches!(plan_type, PlanType::Enterprise | PlanType::Edu)
 }
 
 fn optional_bundle(bundle: CloudConfigBundle) -> Option<CloudConfigBundle> {
@@ -150,6 +155,7 @@ where
             Some(bundle) => {
                 tracing::info!(
                     elapsed_ms = started_at.elapsed().as_millis(),
+                    product_defaults_fragments = bundle.config_toml.product_defaults.len(),
                     config_fragments = bundle.config_toml.enterprise_managed.len(),
                     requirements_fragments = bundle.requirements_toml.enterprise_managed.len(),
                     "Cloud config bundle load completed"
@@ -236,9 +242,20 @@ where
         while attempt <= CLOUD_CONFIG_BUNDLE_MAX_ATTEMPTS {
             match self.client.get_bundle(&auth).await {
                 Ok(bundle) => {
-                    return self
+                    match self
                         .validate_and_cache_remote_bundle(&auth, trigger, attempt, bundle)
-                        .await;
+                        .await
+                    {
+                        Ok(bundle) => return Ok(bundle),
+                        Err(err) if !cloud_config_fail_closed_auth(&auth) => {
+                            tracing::warn!(
+                                error = %err,
+                                "Ignoring optional cloud config bundle load failure"
+                            );
+                            return Ok(None);
+                        }
+                        Err(err) => return Err(err),
+                    }
                 }
                 Err(BundleRequestError::Retryable(status)) => {
                     last_status_code = status.status_code();
@@ -255,7 +272,7 @@ where
                     message,
                 }) => {
                     last_status_code = status_code;
-                    match self
+                    let action = match self
                         .handle_unauthorized(
                             &mut auth,
                             &mut auth_recovery,
@@ -264,8 +281,19 @@ where
                             status_code,
                             &message,
                         )
-                        .await?
+                        .await
                     {
+                        Ok(action) => action,
+                        Err(err) if !cloud_config_fail_closed_auth(&auth) => {
+                            tracing::warn!(
+                                error = %err,
+                                "Ignoring optional cloud config bundle auth failure"
+                            );
+                            return Ok(None);
+                        }
+                        Err(err) => return Err(err),
+                    };
+                    match action {
                         UnauthorizedRecoveryAction::RetrySameAttempt => continue,
                         UnauthorizedRecoveryAction::RetryNextAttempt => {
                             attempt += 1;
@@ -290,11 +318,19 @@ where
             path = %self.cache.path().display(),
             "{CLOUD_CONFIG_BUNDLE_LOAD_FAILED_MESSAGE}"
         );
-        Err(CloudConfigBundleLoadError::new(
+        let err = CloudConfigBundleLoadError::new(
             CloudConfigBundleLoadErrorCode::RequestFailed,
             last_status_code,
             CLOUD_CONFIG_BUNDLE_LOAD_FAILED_MESSAGE,
-        ))
+        );
+        if !cloud_config_fail_closed_auth(&auth) {
+            tracing::warn!(
+                error = %err,
+                "Ignoring optional cloud config bundle request failure"
+            );
+            return Ok(None);
+        }
+        Err(err)
     }
 
     async fn validate_and_cache_remote_bundle(

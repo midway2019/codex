@@ -1204,7 +1204,6 @@ impl ConfigBuilder {
             None => AbsolutePathBuf::current_dir()?,
         };
         harness_overrides.cwd = Some(cwd.to_path_buf());
-        let product_defaults_for_lock = product_defaults.clone();
         let config_layer_stack = load_config_layers_state(
             LOCAL_FS.as_ref(),
             &codex_home,
@@ -1262,18 +1261,8 @@ impl ConfigBuilder {
             let expected_lock_config = lockfile_toml.clone();
             let lock_layer = lock_layer_from_config(config_lock_load_path, &lockfile_toml)?;
             let lock_config_toml = config_without_lock_controls(&lockfile_toml.config);
-            let mut lock_layers = Vec::new();
-            if let Some(product_defaults) = product_defaults_for_lock
-                .get()
-                .await
-                .map_err(std::io::Error::other)?
-                .into_config_layer()
-            {
-                lock_layers.push(product_defaults);
-            }
-            lock_layers.push(lock_layer);
             let lock_config_layer_stack = ConfigLayerStack::new(
-                lock_layers,
+                vec![lock_layer],
                 config_layer_stack.requirements().clone(),
                 config_layer_stack.requirements_toml().clone(),
             )?;

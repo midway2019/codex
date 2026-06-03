@@ -30,6 +30,7 @@ fn bundle_layers_preserve_enterprise_managed_bucket_order() {
     let layers = CloudConfigBundleLayers::from_bundle(
         CloudConfigBundle {
             config_toml: CloudConfigTomlBundle {
+                product_defaults: Vec::new(),
                 enterprise_managed: vec![
                     CloudConfigFragment {
                         id: "cfg_high".to_string(),
@@ -98,6 +99,7 @@ fn bundle_layers_can_strict_validate_enterprise_managed_config() {
     let err = CloudConfigBundleLayers::from_bundle_strict_config(
         CloudConfigBundle {
             config_toml: CloudConfigTomlBundle {
+                product_defaults: Vec::new(),
                 enterprise_managed: vec![CloudConfigFragment {
                     id: "cfg".to_string(),
                     name: "Cloud config".to_string(),

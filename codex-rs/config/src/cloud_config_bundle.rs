@@ -34,18 +34,23 @@ impl CloudConfigBundle {
             requirements_toml,
         } = self;
         let CloudConfigTomlBundle {
+            product_defaults,
             enterprise_managed: config_enterprise_managed,
         } = config_toml;
         let CloudRequirementsTomlBundle {
             enterprise_managed: requirements_enterprise_managed,
         } = requirements_toml;
 
-        config_enterprise_managed.is_empty() && requirements_enterprise_managed.is_empty()
+        product_defaults.is_empty()
+            && config_enterprise_managed.is_empty()
+            && requirements_enterprise_managed.is_empty()
     }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct CloudConfigTomlBundle {
+    #[serde(default)]
+    pub product_defaults: Vec<CloudConfigFragment>,
     pub enterprise_managed: Vec<CloudConfigFragment>,
 }
 
@@ -98,6 +103,7 @@ impl CloudConfigBundleLayers {
         let CloudConfigBundle {
             config_toml:
                 CloudConfigTomlBundle {
+                    product_defaults: _,
                     enterprise_managed: config_enterprise_managed,
                 },
             requirements_toml:
