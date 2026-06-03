@@ -16,7 +16,8 @@ use codex_app_server_protocol::Thread as AppServerThread;
 use codex_app_server_protocol::ThreadListParams;
 use codex_app_server_protocol::ThreadSortKey;
 use codex_arg0::Arg0DispatchPaths;
-use codex_cloud_config::cloud_config_bundle_loader_and_product_defaults_for_storage;
+use codex_cloud_config::BackendConfigLoaders;
+use codex_cloud_config::backend_config_loaders_for_storage;
 use codex_config::CloudConfigBundleLoader;
 use codex_config::ConfigLoadOptions;
 use codex_config::LoaderOverrides;
@@ -262,14 +263,16 @@ async fn start_app_server_for_archive_command(
         .chatgpt_base_url
         .clone()
         .unwrap_or_else(|| "https://chatgpt.com/backend-api/".to_string());
-    let (cloud_config_bundle, product_defaults) =
-        cloud_config_bundle_loader_and_product_defaults_for_storage(
-            codex_home.to_path_buf(),
-            /*enable_codex_api_key_env*/ false,
-            config_toml.cli_auth_credentials_store.unwrap_or_default(),
-            chatgpt_base_url,
-        )
-        .await;
+    let BackendConfigLoaders {
+        cloud_config_bundle,
+        product_defaults,
+    } = backend_config_loaders_for_storage(
+        codex_home.to_path_buf(),
+        /*enable_codex_api_key_env*/ false,
+        config_toml.cli_auth_credentials_store.unwrap_or_default(),
+        chatgpt_base_url,
+    )
+    .await;
 
     let model_provider = if cli.oss {
         resolve_oss_provider(cli.oss_provider.as_deref(), &config_toml)

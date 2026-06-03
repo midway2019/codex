@@ -57,28 +57,34 @@ pub fn cloud_config_bundle_loader(
     })
 }
 
+#[derive(Clone, Debug)]
+pub struct BackendConfigLoaders {
+    pub cloud_config_bundle: CloudConfigBundleLoader,
+    pub product_defaults: ProductDefaultsLoader,
+}
+
 pub async fn cloud_config_bundle_loader_for_storage(
     codex_home: PathBuf,
     enable_codex_api_key_env: bool,
     credentials_store_mode: AuthCredentialsStoreMode,
     chatgpt_base_url: String,
 ) -> CloudConfigBundleLoader {
-    cloud_config_bundle_loader_and_product_defaults_for_storage(
+    backend_config_loaders_for_storage(
         codex_home,
         enable_codex_api_key_env,
         credentials_store_mode,
         chatgpt_base_url,
     )
     .await
-    .0
+    .cloud_config_bundle
 }
 
-pub async fn cloud_config_bundle_loader_and_product_defaults_for_storage(
+pub async fn backend_config_loaders_for_storage(
     codex_home: PathBuf,
     enable_codex_api_key_env: bool,
     credentials_store_mode: AuthCredentialsStoreMode,
     chatgpt_base_url: String,
-) -> (CloudConfigBundleLoader, ProductDefaultsLoader) {
+) -> BackendConfigLoaders {
     let auth_manager = AuthManager::shared(
         codex_home.clone(),
         enable_codex_api_key_env,
@@ -87,10 +93,10 @@ pub async fn cloud_config_bundle_loader_and_product_defaults_for_storage(
     )
     .await;
     let product_defaults = product_defaults_loader(auth_manager.clone(), chatgpt_base_url.clone());
-    (
-        cloud_config_bundle_loader(auth_manager, chatgpt_base_url, codex_home),
+    BackendConfigLoaders {
+        cloud_config_bundle: cloud_config_bundle_loader(auth_manager, chatgpt_base_url, codex_home),
         product_defaults,
-    )
+    }
 }
 
 pub fn product_defaults_loader(

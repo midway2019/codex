@@ -10,7 +10,8 @@ mod metrics;
 mod service;
 mod validation;
 
+pub use bundle_loader::BackendConfigLoaders;
+pub use bundle_loader::backend_config_loaders_for_storage;
 pub use bundle_loader::cloud_config_bundle_loader;
-pub use bundle_loader::cloud_config_bundle_loader_and_product_defaults_for_storage;
 pub use bundle_loader::cloud_config_bundle_loader_for_storage;
 pub use bundle_loader::product_defaults_loader;
