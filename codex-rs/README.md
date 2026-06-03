@@ -73,7 +73,7 @@ command.
 On macOS, `codex sandbox macos` also supports targeted sandbox exceptions for local debugging:
 
 - `--allow-mach-service SERVICE` adds `mach-lookup` permission for a specific global service name.
-- `--allow-appleevent-destination BUNDLE_ID` allows AppleEvent delivery to that destination bundle ID and includes the standard AppleEvents daemon lookup used by system profiles.
+- `--allow-appleevent-destination BUNDLE_ID` adds a seatbelt allowance for AppleEvent delivery to that destination bundle ID. The sender still needs any applicable macOS code-signing entitlement and TCC authorization.
 - `--allow-lsopen` allows LaunchServices open APIs.
 
 ### Selecting a sandbox policy via `--sandbox`
