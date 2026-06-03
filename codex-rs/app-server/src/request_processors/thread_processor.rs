@@ -330,6 +330,7 @@ pub(crate) struct ThreadRequestProcessor {
     pub(super) pending_thread_unloads: Arc<Mutex<HashSet<ThreadId>>>,
     pub(super) thread_state_manager: ThreadStateManager,
     pub(super) thread_watch_manager: ThreadWatchManager,
+    pub(super) thread_catalog_subscriptions: ThreadCatalogSubscriptions,
     pub(super) thread_list_state_permit: Arc<Semaphore>,
     pub(super) thread_goal_processor: ThreadGoalRequestProcessor,
     pub(super) state_db: Option<StateDbHandle>,
@@ -350,6 +351,7 @@ impl ThreadRequestProcessor {
         pending_thread_unloads: Arc<Mutex<HashSet<ThreadId>>>,
         thread_state_manager: ThreadStateManager,
         thread_watch_manager: ThreadWatchManager,
+        thread_catalog_subscriptions: ThreadCatalogSubscriptions,
         thread_list_state_permit: Arc<Semaphore>,
         thread_goal_processor: ThreadGoalRequestProcessor,
         state_db: Option<StateDbHandle>,
@@ -366,6 +368,7 @@ impl ThreadRequestProcessor {
             pending_thread_unloads,
             thread_state_manager,
             thread_watch_manager,
+            thread_catalog_subscriptions,
             thread_list_state_permit,
             thread_goal_processor,
             state_db,
@@ -448,9 +451,12 @@ impl ThreadRequestProcessor {
                     .send_response(request_id.clone(), response)
                     .await;
                 for thread_id in archived_thread_ids {
+                    self.publish_thread_catalog_change(thread_id).await;
                     self.outgoing
                         .send_server_notification(ServerNotification::ThreadArchived(
-                            ThreadArchivedNotification { thread_id },
+                            ThreadArchivedNotification {
+                                thread_id: thread_id.to_string(),
+                            },
                         ))
                         .await;
                 }
@@ -489,6 +495,9 @@ impl ThreadRequestProcessor {
                     .send_response(request_id.clone(), response)
                     .await;
                 if let Some(notification) = notification {
+                    if let Ok(thread_id) = ThreadId::from_string(&notification.thread_id) {
+                        self.publish_thread_catalog_change(thread_id).await;
+                    }
                     self.outgoing
                         .send_server_notification(ServerNotification::ThreadNameUpdated(
                             notification,
@@ -505,9 +514,12 @@ impl ThreadRequestProcessor {
         &self,
         params: ThreadMetadataUpdateParams,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
-        self.thread_metadata_update_response_inner(params)
-            .await
-            .map(|response| Some(response.into()))
+        let thread_id = ThreadId::from_string(&params.thread_id).ok();
+        let response = self.thread_metadata_update_response_inner(params).await?;
+        if let Some(thread_id) = thread_id {
+            self.publish_thread_catalog_change(thread_id).await;
+        }
+        Ok(Some(response.into()))
     }
 
     pub(crate) async fn thread_memory_mode_set(
@@ -537,6 +549,9 @@ impl ThreadRequestProcessor {
                 self.outgoing
                     .send_response(request_id.clone(), response)
                     .await;
+                if let Ok(thread_id) = ThreadId::from_string(&notification.thread_id) {
+                    self.publish_thread_catalog_change(thread_id).await;
+                }
                 self.outgoing
                     .send_server_notification(ServerNotification::ThreadUnarchived(notification))
                     .await;
@@ -583,6 +598,30 @@ impl ThreadRequestProcessor {
         self.thread_list_response_inner(params)
             .await
             .map(|response| Some(response.into()))
+    }
+
+    pub(crate) async fn thread_catalog_subscribe(
+        &self,
+        connection_id: ConnectionId,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        Ok(Some(
+            self.thread_catalog_subscriptions
+                .subscribe(connection_id)
+                .await
+                .into(),
+        ))
+    }
+
+    pub(crate) async fn thread_catalog_unsubscribe(
+        &self,
+        connection_id: ConnectionId,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        Ok(Some(
+            self.thread_catalog_subscriptions
+                .unsubscribe(connection_id)
+                .await
+                .into(),
+        ))
     }
 
     pub(crate) async fn thread_search(
@@ -777,9 +816,12 @@ impl ThreadRequestProcessor {
             thread_state_manager: self.thread_state_manager.clone(),
             outgoing: Arc::clone(&self.outgoing),
             pending_thread_unloads: Arc::clone(&self.pending_thread_unloads),
+            thread_store: Arc::clone(&self.thread_store),
             thread_watch_manager: self.thread_watch_manager.clone(),
+            thread_catalog_subscriptions: self.thread_catalog_subscriptions.clone(),
             thread_list_state_permit: self.thread_list_state_permit.clone(),
             fallback_model_provider: self.config.model_provider_id.clone(),
+            fallback_cwd: self.config.cwd.clone(),
             codex_home: self.config.codex_home.to_path_buf(),
             skills_watcher: Arc::clone(&self.skills_watcher),
         }
@@ -872,9 +914,12 @@ impl ThreadRequestProcessor {
             thread_state_manager: self.thread_state_manager.clone(),
             outgoing: Arc::clone(&self.outgoing),
             pending_thread_unloads: Arc::clone(&self.pending_thread_unloads),
+            thread_store: Arc::clone(&self.thread_store),
             thread_watch_manager: self.thread_watch_manager.clone(),
+            thread_catalog_subscriptions: self.thread_catalog_subscriptions.clone(),
             thread_list_state_permit: self.thread_list_state_permit.clone(),
             fallback_model_provider: self.config.model_provider_id.clone(),
+            fallback_cwd: self.config.cwd.clone(),
             codex_home: self.config.codex_home.to_path_buf(),
             skills_watcher: Arc::clone(&self.skills_watcher),
         };
@@ -1275,7 +1320,7 @@ impl ThreadRequestProcessor {
     async fn thread_archive_inner(
         &self,
         params: ThreadArchiveParams,
-    ) -> Result<(ThreadArchiveResponse, Vec<String>), JSONRPCErrorError> {
+    ) -> Result<(ThreadArchiveResponse, Vec<ThreadId>), JSONRPCErrorError> {
         let _thread_list_state_permit = self.acquire_thread_list_state_permit().await?;
         self.thread_archive_response(params).await
     }
@@ -1283,7 +1328,7 @@ impl ThreadRequestProcessor {
     async fn thread_archive_response(
         &self,
         params: ThreadArchiveParams,
-    ) -> Result<(ThreadArchiveResponse, Vec<String>), JSONRPCErrorError> {
+    ) -> Result<(ThreadArchiveResponse, Vec<ThreadId>), JSONRPCErrorError> {
         let thread_id = ThreadId::from_string(&params.thread_id)
             .map_err(|err| invalid_request(format!("invalid session id: {err}")))?;
 
@@ -1360,7 +1405,7 @@ impl ThreadRequestProcessor {
             .await
         {
             Ok(()) => {
-                archived_thread_ids.push(parent_thread_id.to_string());
+                archived_thread_ids.push(*parent_thread_id);
             }
             Err(err) => return Err(thread_store_archive_error("archive", err)),
         }
@@ -1375,7 +1420,7 @@ impl ThreadRequestProcessor {
                 .await
             {
                 Ok(()) => {
-                    archived_thread_ids.push(descendant_thread_id.to_string());
+                    archived_thread_ids.push(descendant_thread_id);
                 }
                 Err(err) => {
                     warn!(
@@ -1849,6 +1894,17 @@ impl ThreadRequestProcessor {
             next_cursor,
             backwards_cursor,
         })
+    }
+
+    async fn publish_thread_catalog_change(&self, thread_id: ThreadId) {
+        self.thread_catalog_subscriptions
+            .publish_thread_change(
+                &self.thread_store,
+                thread_id,
+                self.config.model_provider_id.as_str(),
+                &self.config.cwd,
+            )
+            .await;
     }
 
     async fn thread_search_response_inner(
@@ -2333,6 +2389,9 @@ impl ThreadRequestProcessor {
     }
 
     pub(crate) async fn connection_closed(&self, connection_id: ConnectionId) {
+        self.thread_catalog_subscriptions
+            .connection_closed(connection_id)
+            .await;
         let thread_ids = self
             .thread_state_manager
             .remove_connection(connection_id)
@@ -3372,6 +3431,8 @@ impl ThreadRequestProcessor {
             )
             .await;
         }
+
+        self.publish_thread_catalog_change(thread_id).await;
 
         self.outgoing
             .send_server_notification(ServerNotification::ThreadStarted(notif))
