@@ -5,4 +5,4 @@
 /**
  * [UNSTABLE] Whether a denied action can be explicitly approved for one retry.
  */
-export type GuardianDenialKind = "soft" | "hard";
+export type GuardianDenialKind = "soft" | "denial";

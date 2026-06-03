@@ -127,8 +127,8 @@ impl ChatWidget {
                 codex_app_server_protocol::GuardianDenialKind::Soft => {
                     codex_protocol::approvals::GuardianDenialKind::Soft
                 }
-                codex_app_server_protocol::GuardianDenialKind::Hard => {
-                    codex_protocol::approvals::GuardianDenialKind::Hard
+                codex_app_server_protocol::GuardianDenialKind::Denial => {
+                    codex_protocol::approvals::GuardianDenialKind::Denial
                 }
             }),
             decision_source: decision_source.map(|source| match source {

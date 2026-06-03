@@ -476,14 +476,14 @@ impl From<CoreGuardianUserAuthorization> for GuardianUserAuthorization {
 /// [UNSTABLE] Whether a denied action can be explicitly approved for one retry.
 pub enum GuardianDenialKind {
     Soft,
-    Hard,
+    Denial,
 }
 
 impl From<CoreGuardianDenialKind> for GuardianDenialKind {
     fn from(value: CoreGuardianDenialKind) -> Self {
         match value {
             CoreGuardianDenialKind::Soft => Self::Soft,
-            CoreGuardianDenialKind::Hard => Self::Hard,
+            CoreGuardianDenialKind::Denial => Self::Denial,
         }
     }
 }

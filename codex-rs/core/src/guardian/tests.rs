@@ -132,8 +132,8 @@ fn guardian_denied_action_registry_claims_only_exact_soft_denial_once() {
     assert!(registry.claim_explicit_retry(&event));
     assert!(!registry.claim_explicit_retry(&event));
 
-    event.id = "hard-1".to_string();
-    registry.record(event.id.clone(), action.clone(), GuardianDenialKind::Hard);
+    event.id = "denial-1".to_string();
+    registry.record(event.id.clone(), action.clone(), GuardianDenialKind::Denial);
     assert!(!registry.claim_explicit_retry(&event));
 
     event.id = "altered-1".to_string();
@@ -1318,9 +1318,9 @@ fn parse_guardian_assessment_treats_bare_deny_as_high_risk() {
 }
 
 #[test]
-fn parse_guardian_assessment_preserves_explicit_hard_denial() {
+fn parse_guardian_assessment_preserves_explicit_denial() {
     let parsed = parse_guardian_assessment(Some(
-        r#"{"risk_level":"high","user_authorization":"high","outcome":"deny","denial_kind":"hard","rationale":"Absolute tenant policy deny."}"#,
+        r#"{"risk_level":"high","user_authorization":"high","outcome":"deny","denial_kind":"denial","rationale":"Absolute tenant policy deny."}"#,
     ))
     .expect("guardian assessment");
 
@@ -1331,17 +1331,17 @@ fn parse_guardian_assessment_preserves_explicit_hard_denial() {
             user_authorization: GuardianUserAuthorization::High,
             outcome: GuardianAssessmentOutcome::Deny,
             rationale: "Absolute tenant policy deny.".to_string(),
-            denial_kind: Some(GuardianDenialKind::Hard),
+            denial_kind: Some(GuardianDenialKind::Denial),
         }
     );
 }
 
 #[test]
-fn parse_guardian_assessment_defaults_critical_denial_to_hard() {
+fn parse_guardian_assessment_defaults_critical_deny_to_denial_kind() {
     let parsed = parse_guardian_assessment(Some(r#"{"risk_level":"critical","outcome":"deny"}"#))
         .expect("guardian assessment");
 
-    assert_eq!(parsed.denial_kind, Some(GuardianDenialKind::Hard));
+    assert_eq!(parsed.denial_kind, Some(GuardianDenialKind::Denial));
 }
 
 #[test]
@@ -1371,7 +1371,7 @@ fn guardian_output_schema_requires_only_outcome_and_allows_optional_details() {
                 },
                 "denial_kind": {
                     "type": "string",
-                    "enum": ["soft", "hard"]
+                    "enum": ["soft", "denial"]
                 }
             },
             "required": ["outcome"]
@@ -1576,7 +1576,7 @@ async fn guardian_review_request_layout_matches_model_visible_request_snapshot()
                 },
                 "denial_kind": {
                     "type": "string",
-                    "enum": ["soft", "hard"]
+                    "enum": ["soft", "denial"]
                 }
             },
             "required": ["outcome"]

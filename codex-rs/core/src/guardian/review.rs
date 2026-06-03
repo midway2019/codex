@@ -53,8 +53,8 @@ const GUARDIAN_REJECTION_INSTRUCTIONS: &str = concat!(
     "Otherwise, stop and request user input.",
 );
 
-const GUARDIAN_HARD_DENIAL_INSTRUCTIONS: &str = concat!(
-    "This is a hard denial and cannot be approved by the user. ",
+const GUARDIAN_DENIAL_INSTRUCTIONS: &str = concat!(
+    "This denial cannot be approved by the user. ",
     "Do not attempt the same outcome via workaround, indirect execution, or policy circumvention. ",
     "Proceed only with a materially safer alternative, or stop and request user input."
 );
@@ -90,9 +90,9 @@ pub(crate) async fn guardian_rejection_message(session: &Session, review_id: &st
     match rejection.source {
         GuardianAssessmentDecisionSource::Agent => {
             let rationale = rejection.rationale.trim();
-            if rejection.denial_kind == Some(GuardianDenialKind::Hard) {
+            if rejection.denial_kind == Some(GuardianDenialKind::Denial) {
                 format!(
-                    "This action was hard-denied due to unacceptable risk.\nReason: {rationale}\n{GUARDIAN_HARD_DENIAL_INSTRUCTIONS}",
+                    "This action was denied due to unacceptable risk.\nReason: {rationale}\n{GUARDIAN_DENIAL_INSTRUCTIONS}",
                 )
             } else if rationale.starts_with("Automatic approval review failed")
                 || rationale.starts_with("Automatic approval review could not")
@@ -613,7 +613,7 @@ async fn run_guardian_review(
         .denial_kind
         .map(|kind| match kind {
             GuardianDenialKind::Soft => ", denial: soft",
-            GuardianDenialKind::Hard => ", denial: hard",
+            GuardianDenialKind::Denial => ", denial",
         })
         .unwrap_or_default();
     let warning = format!(

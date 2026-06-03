@@ -113,7 +113,7 @@ pub enum GuardianAssessmentOutcome {
 #[serde(rename_all = "lowercase")]
 pub enum GuardianDenialKind {
     Soft,
-    Hard,
+    Denial,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, JsonSchema, TS)]
@@ -491,7 +491,7 @@ mod tests {
 
         assert!(event.is_explicit_retry_eligible());
 
-        event.denial_kind = Some(GuardianDenialKind::Hard);
+        event.denial_kind = Some(GuardianDenialKind::Denial);
         assert!(!event.is_explicit_retry_eligible());
 
         event.denial_kind = None;

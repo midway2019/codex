@@ -9808,7 +9808,7 @@
         "description": "[UNSTABLE] Whether a denied action can be explicitly approved for one retry.",
         "enum": [
           "soft",
-          "hard"
+          "denial"
         ],
         "type": "string"
       },

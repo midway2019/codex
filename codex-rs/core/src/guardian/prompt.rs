@@ -616,7 +616,7 @@ pub(crate) fn parse_guardian_assessment(text: Option<&str>) -> anyhow::Result<Gu
         super::GuardianAssessmentOutcome::Allow => None,
         super::GuardianAssessmentOutcome::Deny => Some(parsed_payload.denial_kind.unwrap_or(
             if risk_level == GuardianRiskLevel::Critical {
-                GuardianDenialKind::Hard
+                GuardianDenialKind::Denial
             } else {
                 GuardianDenialKind::Soft
             },
@@ -670,7 +670,7 @@ pub(crate) fn guardian_output_schema() -> Value {
             },
             "denial_kind": {
                 "type": "string",
-                "enum": ["soft", "hard"]
+                "enum": ["soft", "denial"]
             }
         },
         "required": ["outcome"]
@@ -690,7 +690,7 @@ For anything else, use this JSON schema:
   "user_authorization": "unknown" | "low" | "medium" | "high",
   "outcome": "allow" | "deny",
   "rationale": string,
-  "denial_kind": "soft" | "hard"
+  "denial_kind": "soft" | "denial"
 }"#
 }
 
