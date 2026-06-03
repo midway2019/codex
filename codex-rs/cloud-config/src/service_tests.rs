@@ -625,6 +625,25 @@ async fn get_bundle_times_out() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn get_bundle_timeout_for_team_like_plan_fails_open() {
+    let codex_home = tempdir().expect("tempdir");
+    let service = CloudConfigBundleService::new(
+        auth_manager_with_plan("self_serve_business_usage_based").await,
+        Arc::new(PendingBundleClient),
+        codex_home.path().to_path_buf(),
+        CLOUD_CONFIG_BUNDLE_TIMEOUT,
+    );
+    let handle = tokio::spawn(async move { service.load_startup_bundle_with_timeout().await });
+    tokio::time::advance(CLOUD_CONFIG_BUNDLE_TIMEOUT + Duration::from_millis(1)).await;
+
+    assert_eq!(
+        handle.await.expect("cloud config bundle task"),
+        Ok(None),
+        "team-like workspaces should not fail config loading when optional bundle fetch times out"
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn get_bundle_retries_until_success() {
     let fetcher = Arc::new(SequenceBundleClient::new(vec![
         Err(request_error()),

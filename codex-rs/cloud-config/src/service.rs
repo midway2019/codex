@@ -122,26 +122,36 @@ where
         let _timer =
             codex_otel::start_global_timer("codex.cloud_config_bundle.fetch.duration_ms", &[]);
         let started_at = Instant::now();
-        let load_result = timeout(self.timeout, self.load_startup_bundle())
-            .await
-            .inspect_err(|_| {
+        let load_result = match timeout(self.timeout, self.load_startup_bundle()).await {
+            Ok(load_result) => load_result,
+            Err(_) => {
                 let message = format!(
                     "Timed out waiting for cloud config bundle after {}s",
                     self.timeout.as_secs()
                 );
-                tracing::error!("{message}");
-                emit_load_metric("startup", "error", /*bundle*/ None);
-            })
-            .map_err(|_| {
-                CloudConfigBundleLoadError::new(
+                let err = CloudConfigBundleLoadError::new(
                     CloudConfigBundleLoadErrorCode::Timeout,
                     /*status_code*/ None,
                     format!(
                         "timed out waiting for cloud config bundle after {}s",
                         self.timeout.as_secs()
                     ),
-                )
-            })?;
+                );
+
+                if self.optional_bundle_failure_allowed().await {
+                    tracing::warn!(
+                        error = %err,
+                        "Ignoring optional cloud config bundle timeout"
+                    );
+                    emit_load_metric("startup", "success", /*bundle*/ None);
+                    return Ok(None);
+                }
+
+                tracing::error!("{message}");
+                emit_load_metric("startup", "error", /*bundle*/ None);
+                return Err(err);
+            }
+        };
 
         let result = match load_result {
             Ok(result) => result,
@@ -172,6 +182,12 @@ where
         }
 
         Ok(result)
+    }
+
+    async fn optional_bundle_failure_allowed(&self) -> bool {
+        self.auth_manager.auth().await.as_ref().is_some_and(|auth| {
+            cloud_config_eligible_auth(auth) && !cloud_config_fail_closed_auth(auth)
+        })
     }
 
     async fn load_startup_bundle(
@@ -306,6 +322,27 @@ where
             break;
         }
 
+        let err = CloudConfigBundleLoadError::new(
+            CloudConfigBundleLoadErrorCode::RequestFailed,
+            last_status_code,
+            CLOUD_CONFIG_BUNDLE_LOAD_FAILED_MESSAGE,
+        );
+        if !cloud_config_fail_closed_auth(&auth) {
+            emit_fetch_final_metric(
+                trigger,
+                "success",
+                "optional_request_failed",
+                CLOUD_CONFIG_BUNDLE_MAX_ATTEMPTS,
+                last_status_code,
+                /*bundle*/ None,
+            );
+            tracing::warn!(
+                path = %self.cache.path().display(),
+                error = %err,
+                "Ignoring optional cloud config bundle request failure"
+            );
+            return Ok(None);
+        }
         emit_fetch_final_metric(
             trigger,
             "error",
@@ -318,18 +355,6 @@ where
             path = %self.cache.path().display(),
             "{CLOUD_CONFIG_BUNDLE_LOAD_FAILED_MESSAGE}"
         );
-        let err = CloudConfigBundleLoadError::new(
-            CloudConfigBundleLoadErrorCode::RequestFailed,
-            last_status_code,
-            CLOUD_CONFIG_BUNDLE_LOAD_FAILED_MESSAGE,
-        );
-        if !cloud_config_fail_closed_auth(&auth) {
-            tracing::warn!(
-                error = %err,
-                "Ignoring optional cloud config bundle request failure"
-            );
-            return Ok(None);
-        }
         Err(err)
     }
 
