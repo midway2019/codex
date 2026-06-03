@@ -138,6 +138,7 @@ pub(super) use codex_protocol::approvals::GuardianAssessmentDecisionSource;
 pub(super) use codex_protocol::approvals::GuardianAssessmentEvent;
 pub(super) use codex_protocol::approvals::GuardianAssessmentStatus;
 pub(super) use codex_protocol::approvals::GuardianCommandSource;
+pub(super) use codex_protocol::approvals::GuardianDenialKind;
 pub(super) use codex_protocol::approvals::GuardianRiskLevel;
 pub(super) use codex_protocol::approvals::GuardianUserAuthorization;
 pub(super) use codex_protocol::config_types::CollaborationMode;
