@@ -1025,6 +1025,12 @@ pub struct Config {
 
     /// OTEL configuration (exporter type, endpoint, headers, etc.).
     pub otel: codex_config::types::OtelConfig,
+
+    /// Whether Artesia context manager is enabled for KV cache optimization.
+    pub enable_artesia: bool,
+
+    /// Artesia service base URL (from --artesia-url CLI or ARTESIA_BASE_URL env var).
+    pub artesia_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -2236,6 +2242,10 @@ pub struct ConfigOverrides {
     /// Explicit runtime workspace roots for this session. When set, this is
     /// the full runtime root list rather than an additive override.
     pub workspace_roots: Option<Vec<PathBuf>>,
+    /// Whether Artesia context manager is enabled.
+    pub enable_artesia: Option<bool>,
+    /// Artesia service base URL (from CLI).
+    pub artesia_url: Option<String>,
 }
 
 fn dedupe_absolute_paths(paths: &mut Vec<AbsolutePathBuf>) {
@@ -2605,6 +2615,8 @@ impl Config {
             bypass_hook_trust,
             additional_writable_roots,
             workspace_roots: workspace_roots_override,
+            enable_artesia: _,
+            artesia_url: _,
         } = overrides;
         let bypass_hook_trust = bypass_hook_trust.unwrap_or_default();
 
@@ -3624,6 +3636,12 @@ impl Config {
                 .map(|t| t.keymap.clone())
                 .unwrap_or_default(),
             otel,
+            enable_artesia: overrides.enable_artesia.unwrap_or_else(|| {
+                std::env::var("ENABLE_ARTESIA").map(|v| v == "1" || v == "true").unwrap_or(false)
+            }),
+            artesia_url: overrides.artesia_url.clone().or_else(|| {
+                std::env::var("ARTESIA_BASE_URL").ok()
+            }),
         };
         Ok(config)
         })

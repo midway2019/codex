@@ -876,7 +876,11 @@ impl Session {
             session_configuration.thread_name = thread_name.clone();
             validate_config_lock_if_configured(&session_configuration).await?;
             export_config_lock_if_configured(&session_configuration, thread_id).await?;
-            let state = SessionState::new(session_configuration.clone());
+            let state = SessionState::new(
+                session_configuration.clone(),
+                config.enable_artesia,
+                config.artesia_url.as_deref(),
+            );
             let managed_network_requirements_configured = config
                 .config_layer_stack
                 .requirements_toml()

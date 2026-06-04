@@ -6,7 +6,7 @@ use crate::compact::CompactionAnalyticsAttempt;
 use crate::compact::InitialContextInjection;
 use crate::compact::compaction_status_from_result;
 use crate::compact::insert_initial_context_before_last_real_user_or_summary;
-use crate::context_manager::ContextManager;
+use crate::context_manager::ArtesiaContextManager;
 use crate::context_manager::TotalTokenUsageBreakdown;
 use crate::context_manager::estimate_response_item_model_visible_bytes;
 use crate::hook_runtime::PostCompactHookOutcome;
@@ -215,6 +215,10 @@ async fn run_remote_compact_task_inner_impl(
     // fit the compact endpoint. The checkpoint below records it separately from the next sampling
     // request, whose prompt will repeat current developer/context prefix items.
     let trace_input_history = history.raw_items().to_vec();
+
+    // Notify ContextCake that this compact request's messages are one-off.
+    history.mark_one_off();
+
     let prompt_input = history.for_prompt(&turn_context.model_info.input_modalities);
     let tool_router = built_tools(
         sess.as_ref(),
@@ -406,7 +410,7 @@ pub(crate) fn log_remote_compact_failure(
 }
 
 pub(crate) fn trim_function_call_history_to_fit_context_window(
-    history: &mut ContextManager,
+    history: &mut ArtesiaContextManager,
     turn_context: &TurnContext,
     base_instructions: &BaseInstructions,
 ) -> (usize, i64) {

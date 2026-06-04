@@ -270,7 +270,21 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
         bypass_hook_trust,
         cwd,
         add_dir,
+        enable_artesia,
+        artesia_url,
     } = shared;
+
+    // Persist artesia settings as env vars so that config reloads (which
+    // create fresh ConfigOverrides without CLI args) can still pick them up.
+    // SAFETY: codex-exec is single-threaded at this point (before tokio runtime starts).
+    unsafe {
+        if enable_artesia {
+            std::env::set_var("ENABLE_ARTESIA", "1");
+        }
+        if let Some(ref url) = artesia_url {
+            std::env::set_var("ARTESIA_BASE_URL", url);
+        }
+    }
 
     let (_stdout_with_ansi, stderr_with_ansi) = match color {
         cli::Color::Always => (true, true),
@@ -430,6 +444,8 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
         ephemeral: ephemeral.then_some(true),
         bypass_hook_trust: bypass_hook_trust.then_some(true),
         additional_writable_roots: add_dir,
+        enable_artesia: enable_artesia.then_some(true),
+        artesia_url,
     };
 
     let build_config = |overrides| {

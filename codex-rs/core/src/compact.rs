@@ -209,6 +209,10 @@ async fn run_compact_task_inner_impl(
         turn_context.truncation_policy,
     );
 
+    // Notify ContextCake that this compact request's messages are one-off
+    // (KV Cache entries can be released after this single inference).
+    history.mark_one_off();
+
     let max_retries = turn_context.provider.info().stream_max_retries();
     let mut retries = 0;
     let mut client_session = sess.services.model_client.new_session();

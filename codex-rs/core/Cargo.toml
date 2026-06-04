@@ -24,6 +24,7 @@ base64 = { workspace = true }
 bm25 = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 clap = { workspace = true, features = ["derive"] }
+artesia-client = { path = "../../../../../artesia/rust-client" }
 codex-analytics = { workspace = true }
 codex-api = { workspace = true }
 codex-app-server-protocol = { workspace = true }

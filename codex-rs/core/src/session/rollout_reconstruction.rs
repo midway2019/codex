@@ -1,4 +1,5 @@
 use super::*;
+use crate::context_manager::ArtesiaContextManager;
 use crate::context_manager::is_user_turn_boundary;
 
 // Return value of `Session::reconstruct_history_from_rollout`, bundling the rebuilt history with
@@ -231,7 +232,7 @@ impl Session {
             );
         }
 
-        let mut history = ContextManager::new();
+        let mut history = ArtesiaContextManager::passthrough();
         let mut saw_legacy_compaction_without_replacement_history = false;
         if let Some(base_replacement_history) = base_replacement_history {
             history.replace(base_replacement_history.to_vec());

@@ -227,6 +227,10 @@ async fn run_remote_compact_task_inner_impl(
     }
 
     let trace_input_history = history.raw_items().to_vec();
+
+    // Notify ContextCake that this compact request's messages are one-off.
+    history.mark_one_off();
+
     let prompt_input = history.for_prompt(&turn_context.model_info.input_modalities);
     let tool_router = built_tools(
         sess.as_ref(),

@@ -417,6 +417,10 @@ pub(crate) async fn run_turn(
         }
     }
 
+    // Suspend Artesia context at end of turn loop — KV Cache is no longer needed
+    // since no more LLM requests will be made for this session.
+    sess.suspend_artesia().await;
+
     last_agent_message
 }
 
@@ -996,6 +1000,18 @@ async fn run_sampling_request(
     let router = built_tools(sess.as_ref(), turn_context.as_ref(), &cancellation_token).await?;
 
     let base_instructions = sess.get_base_instructions().await;
+
+    // Sync virtual prefix (instructions + tools) to Artesia on first turn.
+    // The flag inside ArtesiaContextManager ensures this only fires once.
+    {
+        let tools_desc = router
+            .model_visible_specs()
+            .iter()
+            .map(|t| t.name().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        sess.sync_artesia_virtual_prefix(&base_instructions.text, &tools_desc).await;
+    }
 
     let tool_runtime = ToolCallRuntime::new(
         Arc::clone(&router),

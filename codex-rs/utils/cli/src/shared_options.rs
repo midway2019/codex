@@ -60,6 +60,14 @@ pub struct SharedCliOptions {
     /// Additional directories that should be writable alongside the primary workspace.
     #[arg(long = "add-dir", value_name = "DIR", value_hint = clap::ValueHint::DirPath)]
     pub add_dir: Vec<PathBuf>,
+
+    /// Enable Artesia context manager for KV cache optimization.
+    #[arg(long = "enable-artesia", default_value_t = false)]
+    pub enable_artesia: bool,
+
+    /// Artesia service base URL. Falls back to ARTESIA_BASE_URL env var if not specified.
+    #[arg(long = "artesia-url", value_name = "URL")]
+    pub artesia_url: Option<String>,
 }
 
 impl SharedCliOptions {
@@ -77,6 +85,8 @@ impl SharedCliOptions {
             bypass_hook_trust,
             cwd,
             add_dir,
+            enable_artesia,
+            artesia_url,
         } = self;
         let Self {
             images: root_images,
@@ -89,6 +99,8 @@ impl SharedCliOptions {
             bypass_hook_trust: root_bypass_hook_trust,
             cwd: root_cwd,
             add_dir: root_add_dir,
+            enable_artesia: root_enable_artesia,
+            artesia_url: root_artesia_url,
         } = root;
 
         if model.is_none() {
@@ -126,6 +138,12 @@ impl SharedCliOptions {
             merged_add_dir.append(add_dir);
             *add_dir = merged_add_dir;
         }
+        if *root_enable_artesia {
+            *enable_artesia = true;
+        }
+        if artesia_url.is_none() {
+            artesia_url.clone_from(root_artesia_url);
+        }
     }
 
     pub fn apply_subcommand_overrides(&mut self, subcommand: Self) {
@@ -142,6 +160,8 @@ impl SharedCliOptions {
             bypass_hook_trust,
             cwd,
             add_dir,
+            enable_artesia,
+            artesia_url,
         } = subcommand;
 
         if let Some(model) = model {
@@ -172,6 +192,12 @@ impl SharedCliOptions {
         }
         if !add_dir.is_empty() {
             self.add_dir.extend(add_dir);
+        }
+        if enable_artesia {
+            self.enable_artesia = true;
+        }
+        if let Some(artesia_url) = artesia_url {
+            self.artesia_url = Some(artesia_url);
         }
     }
 }
