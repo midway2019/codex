@@ -642,7 +642,29 @@ pub struct PluginDetail {
     pub skills: Vec<SkillSummary>,
     pub hooks: Vec<PluginHookSummary>,
     pub apps: Vec<AppSummary>,
+    pub unavailable_app_templates: Vec<UnavailableAppTemplateSummary>,
     pub mcp_servers: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[ts(export_to = "v2/")]
+pub enum UnavailableAppTemplateReason {
+    NotConfiguredForWorkspace,
+    NoActiveWorkspace,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct UnavailableAppTemplateSummary {
+    pub template_id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub canonical_connector_id: Option<String>,
+    pub logo_url: Option<String>,
+    pub logo_url_dark: Option<String>,
+    pub reason: UnavailableAppTemplateReason,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

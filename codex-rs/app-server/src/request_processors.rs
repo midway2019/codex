@@ -255,6 +255,8 @@ use codex_app_server_protocol::TurnStartResponse;
 use codex_app_server_protocol::TurnStatus;
 use codex_app_server_protocol::TurnSteerParams;
 use codex_app_server_protocol::TurnSteerResponse;
+use codex_app_server_protocol::UnavailableAppTemplateReason;
+use codex_app_server_protocol::UnavailableAppTemplateSummary;
 use codex_app_server_protocol::UserInput as V2UserInput;
 use codex_app_server_protocol::WindowsSandboxReadiness;
 use codex_app_server_protocol::WindowsSandboxReadinessResponse;

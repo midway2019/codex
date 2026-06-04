@@ -163,6 +163,25 @@ pub struct RemotePluginDetail {
     pub app_manifest: Option<JsonValue>,
     pub skills: Vec<RemotePluginSkill>,
     pub app_ids: Vec<String>,
+    pub unavailable_app_templates: Vec<RemoteUnavailableAppTemplate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteUnavailableAppTemplate {
+    pub template_id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub canonical_connector_id: Option<String>,
+    pub logo_url: Option<String>,
+    pub logo_url_dark: Option<String>,
+    pub reason: RemoteUnavailableAppTemplateReason,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum RemoteUnavailableAppTemplateReason {
+    NotConfiguredForWorkspace,
+    NoActiveWorkspace,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -396,10 +415,27 @@ struct RemotePluginReleaseResponse {
     #[serde(default)]
     app_manifest: Option<JsonValue>,
     #[serde(default)]
+    unavailable_app_templates: Vec<RemoteUnavailableAppTemplateResponse>,
+    #[serde(default)]
     keywords: Vec<String>,
     interface: RemotePluginReleaseInterfaceResponse,
     #[serde(default)]
     skills: Vec<RemotePluginSkillResponse>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct RemoteUnavailableAppTemplateResponse {
+    template_id: String,
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    canonical_connector_id: Option<String>,
+    #[serde(default)]
+    logo_url: Option<String>,
+    #[serde(default)]
+    logo_url_dark: Option<String>,
+    reason: RemoteUnavailableAppTemplateReason,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -899,6 +935,20 @@ async fn build_remote_plugin_detail(
         app_manifest: plugin.release.app_manifest,
         skills,
         app_ids: plugin.release.app_ids,
+        unavailable_app_templates: plugin
+            .release
+            .unavailable_app_templates
+            .into_iter()
+            .map(|template| RemoteUnavailableAppTemplate {
+                template_id: template.template_id,
+                name: template.name,
+                description: template.description,
+                canonical_connector_id: template.canonical_connector_id,
+                logo_url: template.logo_url,
+                logo_url_dark: template.logo_url_dark,
+                reason: template.reason,
+            })
+            .collect(),
     })
 }
 

@@ -6,5 +6,6 @@ import type { AppSummary } from "./AppSummary";
 import type { PluginHookSummary } from "./PluginHookSummary";
 import type { PluginSummary } from "./PluginSummary";
 import type { SkillSummary } from "./SkillSummary";
+import type { UnavailableAppTemplateSummary } from "./UnavailableAppTemplateSummary";
 
-export type PluginDetail = { marketplaceName: string, marketplacePath: AbsolutePathBuf | null, summary: PluginSummary, description: string | null, skills: Array<SkillSummary>, hooks: Array<PluginHookSummary>, apps: Array<AppSummary>, mcpServers: Array<string>, };
+export type PluginDetail = { marketplaceName: string, marketplacePath: AbsolutePathBuf | null, summary: PluginSummary, description: string | null, skills: Array<SkillSummary>, hooks: Array<PluginHookSummary>, apps: Array<AppSummary>, unavailableAppTemplates: Array<UnavailableAppTemplateSummary>, mcpServers: Array<string>, };

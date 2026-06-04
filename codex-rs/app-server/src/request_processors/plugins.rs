@@ -7,6 +7,7 @@ use codex_app_server_protocol::PluginSharePrincipalRole;
 use codex_app_server_protocol::PluginShareTargetRole;
 use codex_config::types::McpServerConfig;
 use codex_core_plugins::remote::RemotePluginScope;
+use codex_core_plugins::remote::RemoteUnavailableAppTemplateReason;
 use codex_core_plugins::remote::is_valid_remote_plugin_id;
 use codex_core_plugins::remote::validate_remote_plugin_id;
 use codex_mcp::McpOAuthLoginSupport;
@@ -1009,6 +1010,7 @@ impl PluginRequestProcessor {
                         })
                         .collect(),
                     apps: app_summaries,
+                    unavailable_app_templates: Vec::new(),
                     mcp_servers: outcome.plugin.mcp_server_names,
                 }
             }
@@ -1954,6 +1956,27 @@ fn remote_plugin_detail_to_info(
     detail: RemoteCatalogPluginDetail,
     apps: Vec<AppSummary>,
 ) -> PluginDetail {
+    let unavailable_app_templates = detail
+        .unavailable_app_templates
+        .into_iter()
+        .map(|template| UnavailableAppTemplateSummary {
+            template_id: template.template_id,
+            name: template.name,
+            description: template.description,
+            canonical_connector_id: template.canonical_connector_id,
+            logo_url: template.logo_url,
+            logo_url_dark: template.logo_url_dark,
+            reason: match template.reason {
+                RemoteUnavailableAppTemplateReason::NotConfiguredForWorkspace => {
+                    UnavailableAppTemplateReason::NotConfiguredForWorkspace
+                }
+                RemoteUnavailableAppTemplateReason::NoActiveWorkspace => {
+                    UnavailableAppTemplateReason::NoActiveWorkspace
+                }
+            },
+        })
+        .collect();
+
     PluginDetail {
         marketplace_name: detail.marketplace_name,
         marketplace_path: None,
@@ -1973,6 +1996,7 @@ fn remote_plugin_detail_to_info(
             .collect(),
         hooks: Vec::new(),
         apps,
+        unavailable_app_templates,
         mcp_servers: Vec::new(),
     }
 }

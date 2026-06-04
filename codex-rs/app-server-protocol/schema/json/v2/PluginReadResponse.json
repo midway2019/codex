@@ -123,6 +123,12 @@
         },
         "summary": {
           "$ref": "#/definitions/PluginSummary"
+        },
+        "unavailableAppTemplates": {
+          "items": {
+            "$ref": "#/definitions/UnavailableAppTemplateSummary"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -131,7 +137,8 @@
         "marketplaceName",
         "mcpServers",
         "skills",
-        "summary"
+        "summary",
+        "unavailableAppTemplates"
       ],
       "type": "object"
     },
@@ -648,6 +655,56 @@
         "description",
         "enabled",
         "name"
+      ],
+      "type": "object"
+    },
+    "UnavailableAppTemplateReason": {
+      "enum": [
+        "NOT_CONFIGURED_FOR_WORKSPACE",
+        "NO_ACTIVE_WORKSPACE"
+      ],
+      "type": "string"
+    },
+    "UnavailableAppTemplateSummary": {
+      "properties": {
+        "canonicalConnectorId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logoUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logoUrlDark": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "reason": {
+          "$ref": "#/definitions/UnavailableAppTemplateReason"
+        },
+        "templateId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "reason",
+        "templateId"
       ],
       "type": "object"
     }
