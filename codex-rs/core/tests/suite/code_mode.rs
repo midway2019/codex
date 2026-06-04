@@ -375,7 +375,11 @@ async fn code_mode_only_restricts_prompt_tools() -> Result<()> {
     let first_body = resp_mock.single_request().body_json();
     assert_eq!(
         tool_names(&first_body),
-        vec!["exec".to_string(), "wait".to_string()]
+        vec![
+            "exec".to_string(),
+            "wait".to_string(),
+            "web_search".to_string()
+        ]
     );
 
     Ok(())
@@ -457,7 +461,12 @@ if (!tool) {
     let first_body = resp_mock.single_request().body_json();
     assert_eq!(
         tool_names(&first_body),
-        vec!["exec".to_string(), "wait".to_string()]
+        vec![
+            "exec".to_string(),
+            "wait".to_string(),
+            "web_search".to_string(),
+            "image_generation".to_string()
+        ]
     );
 
     let exec_description = first_body
