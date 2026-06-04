@@ -207,7 +207,12 @@ fn build_model_visible_specs_and_registry(
         if exposure.is_direct() && !is_hidden_by_code_mode_only(turn_context, &tool_name, exposure)
         {
             let spec = runtime.spec();
-            specs.push(spec_for_model_request(turn_context, exposure, spec));
+            specs.push(spec_for_model_request(
+                turn_context,
+                exposure,
+                &tool_name,
+                spec,
+            ));
         }
     }
     for spec in hosted_specs {
@@ -234,12 +239,14 @@ fn build_model_visible_specs_and_registry(
 fn spec_for_model_request(
     turn_context: &TurnContext,
     exposure: ToolExposure,
+    tool_name: &ToolName,
     spec: ToolSpec,
 ) -> ToolSpec {
     if matches!(
         turn_context.tool_mode,
         ToolMode::CodeMode | ToolMode::CodeModeOnly
     ) && exposure != ToolExposure::DirectModelOnly
+        && !is_excluded_from_code_mode(turn_context, tool_name)
         && codex_code_mode::is_code_mode_nested_tool(spec.name())
     {
         codex_tools::augment_tool_spec_for_code_mode(spec)
@@ -412,10 +419,18 @@ fn is_hidden_by_code_mode_only(
         ))
 }
 
+fn is_excluded_from_code_mode(turn_context: &TurnContext, tool_name: &ToolName) -> bool {
+    tool_name.namespace.as_ref().is_some_and(|namespace| {
+        turn_context
+            .config
+            .experimental_code_mode_excluded_namespaces
+            .contains(namespace)
+    })
+}
+
 fn build_code_mode_executors(
     turn_context: &TurnContext,
     executors: &[Arc<dyn CoreToolRuntime>],
-    deferred_tools_available: bool,
 ) -> Vec<Arc<dyn CoreToolRuntime>> {
     if !matches!(
         turn_context.tool_mode,
@@ -426,6 +441,8 @@ fn build_code_mode_executors(
 
     let mut code_mode_nested_tool_specs = Vec::new();
     let mut exec_prompt_tool_specs = Vec::new();
+    let mut deferred_tools_available = false;
+    let deferred_tools_guidance_enabled = search_tool_enabled(turn_context);
     for executor in executors {
         let exposure = executor.exposure();
         if exposure == ToolExposure::DirectModelOnly {
@@ -435,9 +452,19 @@ fn build_code_mode_executors(
         if exposure == ToolExposure::Hidden {
             continue;
         }
+
+        if is_excluded_from_code_mode(turn_context, &executor.tool_name()) {
+            continue;
+        }
+
         let spec = executor.spec();
 
-        if exposure != ToolExposure::Deferred {
+        if exposure == ToolExposure::Deferred {
+            // Only show deferred-tool guidance when supported and an included spec is usable by code mode.
+            deferred_tools_available |= deferred_tools_guidance_enabled
+                && !collect_code_mode_exec_prompt_tool_definitions(std::iter::once(&spec))
+                    .is_empty();
+        } else {
             exec_prompt_tool_specs.push(spec.clone());
         }
         code_mode_nested_tool_specs.push(spec);
@@ -846,16 +873,7 @@ fn prepend_code_mode_executors(
     planned_tools: &mut PlannedTools,
 ) {
     let turn_context = context.turn_context;
-    let deferred_tools_available = search_tool_enabled(turn_context)
-        && planned_tools
-            .runtimes()
-            .iter()
-            .any(|executor| executor.exposure() == ToolExposure::Deferred);
-    let code_mode_executors = build_code_mode_executors(
-        turn_context,
-        planned_tools.runtimes(),
-        deferred_tools_available,
-    );
+    let code_mode_executors = build_code_mode_executors(turn_context, planned_tools.runtimes());
     planned_tools.runtimes.splice(0..0, code_mode_executors);
 }
 
