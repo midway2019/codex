@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 use super::AdditionalContextStore;
 use super::auto_compact_window::AutoCompactWindow;
 use super::auto_compact_window::AutoCompactWindowSnapshot;
-use crate::context_manager::ContextManager;
+use crate::context_manager::ArtesiaContextManager;
 use crate::session::PreviousTurnSettings;
 use crate::session::session::SessionConfiguration;
 use crate::session_startup_prewarm::SessionStartupPrewarmHandle;
@@ -23,7 +23,7 @@ use codex_utils_output_truncation::TruncationPolicy;
 /// Persistent, session-scoped state previously stored directly on `Session`.
 pub(crate) struct SessionState {
     pub(crate) session_configuration: SessionConfiguration,
-    pub(crate) history: ContextManager,
+    pub(crate) history: ArtesiaContextManager,
     pub(crate) latest_rate_limits: Option<RateLimitSnapshot>,
     pub(crate) server_reasoning_included: bool,
     pub(crate) mcp_dependency_prompted: HashSet<String>,
@@ -43,9 +43,19 @@ pub(crate) struct SessionState {
 }
 
 impl SessionState {
-    /// Create a new session state mirroring previous `State::default()` semantics.
-    pub(crate) fn new(session_configuration: SessionConfiguration) -> Self {
-        let history = ContextManager::new();
+    /// Create a new session state.
+    /// When `enable_artesia` is true, KV Cache management is performed in-process
+    /// via the Artesia C++ core (local mode, no server needed).
+    pub(crate) fn new(
+        session_configuration: SessionConfiguration,
+        enable_artesia: bool,
+    ) -> Self {
+        let context_id = uuid::Uuid::new_v4().to_string();
+        let history = if enable_artesia {
+            ArtesiaContextManager::new(context_id)
+        } else {
+            ArtesiaContextManager::passthrough()
+        };
         Self {
             session_configuration,
             history,
@@ -92,7 +102,7 @@ impl SessionState {
         is_first_turn
     }
 
-    pub(crate) fn clone_history(&self) -> ContextManager {
+    pub(crate) fn clone_history(&self) -> ArtesiaContextManager {
         self.history.clone()
     }
 

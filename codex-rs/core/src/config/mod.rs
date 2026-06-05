@@ -1031,6 +1031,7 @@ pub struct Config {
 
     /// Artesia service base URL (from --artesia-url CLI or ARTESIA_BASE_URL env var).
     pub artesia_url: Option<String>,
+
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

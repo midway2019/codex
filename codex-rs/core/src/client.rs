@@ -182,6 +182,8 @@ struct ModelClientState {
     attestation_provider: Option<Arc<dyn AttestationProvider>>,
     disable_websockets: AtomicBool,
     cached_websocket_session: StdMutex<WebsocketSession>,
+    /// When true, LLM calls are proxied through Artesia (Responses API → Chat Completions).
+    enable_artesia: bool,
 }
 
 /// Resolved API client setup for a single request attempt.
@@ -328,6 +330,7 @@ impl ModelClient {
         include_timing_metrics: bool,
         beta_features_header: Option<String>,
         attestation_provider: Option<Arc<dyn AttestationProvider>>,
+        enable_artesia: bool,
     ) -> Self {
         let model_provider = create_model_provider(provider_info, auth_manager);
         let codex_api_key_env_enabled = model_provider
@@ -355,6 +358,7 @@ impl ModelClient {
                 attestation_provider,
                 disable_websockets: AtomicBool::new(false),
                 cached_websocket_session: StdMutex::new(WebsocketSession::default()),
+                enable_artesia,
             }),
             prompt_cache_key_override: None,
         }
@@ -796,7 +800,8 @@ impl ModelClient {
     ///
     /// WebSocket use is controlled by provider capability and session-scoped fallback state.
     pub fn responses_websocket_enabled(&self) -> bool {
-        if !self.state.provider.info().supports_websockets
+        if self.state.enable_artesia
+            || !self.state.provider.info().supports_websockets
             || self.state.disable_websockets.load(Ordering::Relaxed)
         {
             return false;
@@ -1287,11 +1292,13 @@ impl ModelClientSession {
             let inference_trace_attempt = inference_trace.start_attempt();
             inference_trace_attempt.add_request_headers(&mut options.extra_headers);
             inference_trace_attempt.record_started(&request);
+
             let client = ApiResponsesClient::new(
                 transport,
                 client_setup.api_provider,
                 client_setup.api_auth,
             )
+            .with_artesia(self.client.state.enable_artesia)
             .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
             let stream_result = client.stream_request(request, options).await;
 
@@ -1640,6 +1647,12 @@ impl ModelClientSession {
         }
     }
 
+    /// Stream a Responses API request through Artesia.
+    ///
+    /// Converts the Codex `Prompt` to a `ResponsesApiRequest` JSON, calls the Artesia C core
+    /// to convert it to Chat Completions format, sends the HTTP request to the LLM endpoint,
+    /// parses the SSE response, and converts `LlmEvent` values back to `ResponseEvent` values
+    /// that Codex can consume directly.
     /// Permanently disables WebSockets for this Codex session and resets WebSocket state.
     ///
     /// This is used after exhausting the provider retry budget, to force subsequent requests onto

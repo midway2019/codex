@@ -26,6 +26,7 @@ use tracing::instrument;
 pub struct ResponsesClient<T: HttpTransport> {
     session: EndpointSession<T>,
     sse_telemetry: Option<Arc<dyn SseTelemetry>>,
+    enable_artesia: bool,
 }
 
 #[derive(Default)]
@@ -43,7 +44,13 @@ impl<T: HttpTransport> ResponsesClient<T> {
         Self {
             session: EndpointSession::new(transport, provider, auth),
             sse_telemetry: None,
+            enable_artesia: false,
         }
+    }
+
+    pub fn with_artesia(mut self, enable: bool) -> Self {
+        self.enable_artesia = enable;
+        self
     }
 
     pub fn with_telemetry(
@@ -54,6 +61,7 @@ impl<T: HttpTransport> ResponsesClient<T> {
         Self {
             session: self.session.with_request_telemetry(request),
             sse_telemetry: sse,
+            enable_artesia: self.enable_artesia,
         }
     }
 
@@ -126,22 +134,40 @@ impl<T: HttpTransport> ResponsesClient<T> {
             Compression::Zstd => RequestCompression::Zstd,
         };
 
-        let stream_response = self
-            .session
-            .stream_with(
-                Method::POST,
-                Self::path(),
-                extra_headers,
-                Some(body),
-                |req| {
-                    req.headers.insert(
-                        http::header::ACCEPT,
-                        HeaderValue::from_static("text/event-stream"),
-                    );
-                    req.compression = request_compression;
-                },
+        let stream_response = if self.enable_artesia {
+            let provider = self.session.provider();
+            let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
+            let (status, headers, sse) = artesia_client::responses::proxy_responses(
+                &body.to_string(),
+                &provider.base_url,
+                &api_key,
             )
-            .await?;
+            .await
+            .map_err(|e| ApiError::Stream(format!("Artesia error: {e}")))?;
+
+            use futures::StreamExt;
+            codex_client::StreamResponse {
+                status,
+                headers,
+                bytes: Box::pin(sse.map(|r| r.map_err(codex_client::TransportError::Network))),
+            }
+        } else {
+            self.session
+                .stream_with(
+                    Method::POST,
+                    Self::path(),
+                    extra_headers,
+                    Some(body),
+                    |req| {
+                        req.headers.insert(
+                            http::header::ACCEPT,
+                            HeaderValue::from_static("text/event-stream"),
+                        );
+                        req.compression = request_compression;
+                    },
+                )
+                .await?
+        };
 
         Ok(spawn_response_stream(
             stream_response,
@@ -150,4 +176,5 @@ impl<T: HttpTransport> ResponsesClient<T> {
             turn_state,
         ))
     }
+
 }

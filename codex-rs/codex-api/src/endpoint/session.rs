@@ -44,6 +44,19 @@ impl<T: HttpTransport> EndpointSession<T> {
         &self.provider
     }
 
+    /// Extract the Bearer token from the auth provider's headers.
+    pub(crate) fn bearer_token(&self) -> String {
+        let mut headers = http::HeaderMap::new();
+        self.auth.add_auth_headers(&mut headers);
+        headers
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .strip_prefix("Bearer ")
+            .unwrap_or("")
+            .to_string()
+    }
+
     fn make_request(
         &self,
         method: &Method,

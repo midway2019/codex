@@ -10,7 +10,7 @@ use pretty_assertions::assert_eq;
 // Verifies connector merging deduplicates repeated IDs.
 async fn merge_connector_selection_deduplicates_entries() {
     let session_configuration = make_session_configuration_for_tests().await;
-    let mut state = SessionState::new(session_configuration);
+    let mut state = SessionState::new(session_configuration, false);
     let merged = state.merge_connector_selection([
         "calendar".to_string(),
         "calendar".to_string(),
@@ -27,7 +27,7 @@ async fn merge_connector_selection_deduplicates_entries() {
 // Verifies clearing connector selection removes all saved IDs.
 async fn clear_connector_selection_removes_entries() {
     let session_configuration = make_session_configuration_for_tests().await;
-    let mut state = SessionState::new(session_configuration);
+    let mut state = SessionState::new(session_configuration, false);
     state.merge_connector_selection(["calendar".to_string()]);
 
     state.clear_connector_selection();
@@ -38,7 +38,7 @@ async fn clear_connector_selection_removes_entries() {
 #[tokio::test]
 async fn set_rate_limits_defaults_limit_id_to_codex_when_missing() {
     let session_configuration = make_session_configuration_for_tests().await;
-    let mut state = SessionState::new(session_configuration);
+    let mut state = SessionState::new(session_configuration, false);
 
     state.set_rate_limits(RateLimitSnapshot {
         limit_id: None,
@@ -67,7 +67,7 @@ async fn set_rate_limits_defaults_limit_id_to_codex_when_missing() {
 #[tokio::test]
 async fn replace_history_clears_auto_compact_window_prefill_without_advancing() {
     let session_configuration = make_session_configuration_for_tests().await;
-    let mut state = SessionState::new(session_configuration);
+    let mut state = SessionState::new(session_configuration, false);
 
     state.start_next_auto_compact_window();
     state.set_auto_compact_window_estimated_prefill(/*tokens*/ 100);
@@ -85,7 +85,7 @@ async fn replace_history_clears_auto_compact_window_prefill_without_advancing() 
 #[tokio::test]
 async fn set_rate_limits_defaults_to_codex_when_limit_id_missing_after_other_bucket() {
     let session_configuration = make_session_configuration_for_tests().await;
-    let mut state = SessionState::new(session_configuration);
+    let mut state = SessionState::new(session_configuration, false);
 
     state.set_rate_limits(RateLimitSnapshot {
         limit_id: Some("codex_other".to_string()),
@@ -128,7 +128,7 @@ async fn set_rate_limits_defaults_to_codex_when_limit_id_missing_after_other_buc
 #[tokio::test]
 async fn set_rate_limits_carries_account_metadata_from_codex_to_codex_other() {
     let session_configuration = make_session_configuration_for_tests().await;
-    let mut state = SessionState::new(session_configuration);
+    let mut state = SessionState::new(session_configuration, false);
 
     state.set_rate_limits(RateLimitSnapshot {
         limit_id: Some("codex".to_string()),

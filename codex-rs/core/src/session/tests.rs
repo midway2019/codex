@@ -3189,7 +3189,7 @@ async fn set_rate_limits_retains_previous_credits() {
         user_shell_override: None,
     };
 
-    let mut state = SessionState::new(session_configuration);
+    let mut state = SessionState::new(session_configuration, false);
     let initial = RateLimitSnapshot {
         limit_id: None,
         limit_name: None,
@@ -3297,7 +3297,7 @@ async fn set_rate_limits_updates_plan_type_when_present() {
         user_shell_override: None,
     };
 
-    let mut state = SessionState::new(session_configuration);
+    let mut state = SessionState::new(session_configuration, false);
     let initial = RateLimitSnapshot {
         limit_id: None,
         limit_name: None,
@@ -4696,7 +4696,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
         session_configuration.session_source.clone(),
     );
 
-    let state = SessionState::new(session_configuration.clone());
+    let state = SessionState::new(session_configuration.clone(), false);
     let plugins_manager = Arc::new(PluginsManager::new(config.codex_home.to_path_buf()));
     let mcp_manager = Arc::new(McpManager::new(Arc::clone(&plugins_manager)));
     let skills_manager = Arc::new(SkillsManager::new(
@@ -6786,7 +6786,7 @@ where
         session_configuration.session_source.clone(),
     );
 
-    let state = SessionState::new(session_configuration.clone());
+    let state = SessionState::new(session_configuration.clone(), false);
     let plugins_manager = Arc::new(PluginsManager::new(config.codex_home.to_path_buf()));
     let mcp_manager = Arc::new(McpManager::new(Arc::clone(&plugins_manager)));
     let skills_manager = Arc::new(SkillsManager::new(

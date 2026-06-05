@@ -63,13 +63,12 @@ impl Clone for ArtesiaContextManager {
 
 impl ArtesiaContextManager {
     /// Create a new adapter wrapping a fresh ContextManager.
-    /// `base_url` is the Artesia SDK service endpoint.
-    /// `context_id` is the ID to use for the remote context.
+    /// `context_id` is the ID to use for the local context.
     ///
-    /// Also creates the context on the Artesia service immediately.
-    pub(crate) fn new(base_url: String, context_id: String) -> Self {
-        let client = ArtesiaClient::new(&base_url);
-        // Create the remote context eagerly
+    /// Uses `ArtesiaClient::local()` — all operations run in-process via C++ FFI,
+    /// no HTTP server needed.
+    pub(crate) fn new(context_id: String) -> Self {
+        let client = ArtesiaClient::local();
         if let Err(e) = client.create_context(&context_id) {
             tracing::warn!("Artesia create_context failed: {e}");
         }
@@ -87,7 +86,7 @@ impl ArtesiaContextManager {
     pub(crate) fn passthrough() -> Self {
         Self {
             inner: ContextManager::new(),
-            client: ArtesiaClient::new("http://disabled"),
+            client: ArtesiaClient::local(),
             context_id: String::new(),
             enabled: false,
             virtual_prefix_synced: true,
@@ -130,22 +129,6 @@ impl ArtesiaContextManager {
                 tracing::warn!("Artesia remove_message(0) failed: {e}");
             }
         }
-    }
-
-    /// Remove the last (newest) item.
-    /// Delegates to inner.remove_last_item(), then syncs to Artesia.
-    pub(crate) fn remove_last_item(&mut self) -> bool {
-        let removed = self.inner.remove_last_item();
-
-        if self.enabled && removed {
-            // Get current count after removal to determine which index was removed
-            let removed_index = self.inner.raw_items().len(); // item at this index was just popped
-            if let Err(e) = self.client.remove_message(&self.context_id, removed_index) {
-                tracing::warn!("Artesia remove_message({removed_index}) failed: {e}");
-            }
-        }
-
-        removed
     }
 
     /// Full replace of the context (e.g., after compaction).
@@ -195,6 +178,10 @@ impl ArtesiaContextManager {
 
     pub(crate) fn raw_items(&self) -> &[ResponseItem] {
         self.inner.raw_items()
+    }
+
+    pub(crate) fn into_raw_items(self) -> Vec<ResponseItem> {
+        self.inner.into_raw_items()
     }
 
     pub(crate) fn history_version(&self) -> u64 {

@@ -879,7 +879,6 @@ impl Session {
             let state = SessionState::new(
                 session_configuration.clone(),
                 config.enable_artesia,
-                config.artesia_url.as_deref(),
             );
             let managed_network_requirements_configured = config
                 .config_layer_stack
@@ -1042,6 +1041,7 @@ impl Session {
                     config.features.enabled(Feature::RuntimeMetrics),
                     Self::build_model_client_beta_features_header(config.as_ref()),
                     attestation_provider,
+                    config.enable_artesia,
                 )
                 .with_prompt_cache_key_override(
                     crate::guardian::prompt_cache_key_override_for_review_session(
