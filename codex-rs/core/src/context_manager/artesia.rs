@@ -46,6 +46,9 @@ pub(crate) struct ArtesiaContextManager {
 
     /// Whether virtual prefix has been synced to Artesia (only once per session).
     virtual_prefix_synced: bool,
+
+    /// Whether every inference in this context is one-off.
+    one_off: bool,
 }
 
 impl Clone for ArtesiaContextManager {
@@ -57,6 +60,7 @@ impl Clone for ArtesiaContextManager {
             // Clones are never the "owner" — only the original syncs to Artesia.
             enabled: false,
             virtual_prefix_synced: true,
+            one_off: self.one_off,
         }
     }
 }
@@ -78,6 +82,7 @@ impl ArtesiaContextManager {
             context_id,
             enabled: true,
             virtual_prefix_synced: false,
+            one_off: false,
         }
     }
 
@@ -90,6 +95,7 @@ impl ArtesiaContextManager {
             context_id: String::new(),
             enabled: false,
             virtual_prefix_synced: true,
+            one_off: false,
         }
     }
 
@@ -234,6 +240,20 @@ impl ArtesiaContextManager {
 
     // ─── Artesia-specific methods ───
 
+    pub(crate) fn context_id(&self) -> Option<String> {
+        self.enabled.then(|| self.context_id.clone())
+    }
+
+    pub(crate) fn mark_fork_from(&self, parent_context_id: &str) {
+        if self.enabled
+            && let Err(e) = self
+                .client
+                .fork_context(parent_context_id, &self.context_id)
+        {
+            tracing::warn!("Artesia fork_context failed: {e}");
+        }
+    }
+
     /// Sync the virtual prefix (base instructions + tool descriptions) to Artesia.
     ///
     /// Virtual prefix messages are not part of `raw_items()` — they are injected
@@ -285,6 +305,23 @@ impl ArtesiaContextManager {
         let message_count = virtual_prefix_count + self.inner.raw_items().len();
 
         if let Err(e) = self.client.mark_all_one_off(&compact_context_id, message_count) {
+            tracing::warn!("Artesia mark_one_off failed: {e}");
+        }
+    }
+
+    pub(crate) fn set_one_off(&mut self) {
+        self.one_off = true;
+    }
+
+    /// Mark this session's current messages as one-off before inference.
+    pub(crate) fn mark_current_one_off(&self) {
+        if !self.enabled || !self.one_off {
+            return;
+        }
+        if let Err(e) = self
+            .client
+            .mark_all_one_off(&self.context_id, 1 + self.inner.raw_items().len())
+        {
             tracing::warn!("Artesia mark_one_off failed: {e}");
         }
     }

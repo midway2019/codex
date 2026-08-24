@@ -1013,6 +1013,8 @@ async fn run_sampling_request(
         sess.sync_artesia_virtual_prefix(&base_instructions.text, &tools_desc).await;
     }
 
+    sess.state.lock().await.history.mark_current_one_off();
+
     let tool_runtime = ToolCallRuntime::new(
         Arc::clone(&router),
         Arc::clone(&sess),

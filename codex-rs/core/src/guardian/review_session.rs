@@ -561,6 +561,7 @@ impl GuardianReviewSessionManager {
             }
             Err(outcome) => return (outcome, GuardianReviewAnalyticsResult::without_session()),
         };
+        review_session.codex.session.set_artesia_one_off().await;
         self.register_active_ephemeral(Arc::clone(&review_session))
             .await;
         let mut cleanup =

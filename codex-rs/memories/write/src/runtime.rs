@@ -186,7 +186,11 @@ impl MemoryStartupContext {
             config.features.enabled(Feature::RuntimeMetrics),
             /*beta_features_header*/ None,
             /*attestation_provider*/ None,
-            /*enable_artesia*/ false,
+            config.enable_artesia,
+        );
+        model_client.mark_artesia_one_off(
+            &format!("{}:memory-phase1:{}", self.thread_id, SessionId::new()),
+            1 + prompt.input.len(),
         );
 
         let mut client_session = model_client.new_session();

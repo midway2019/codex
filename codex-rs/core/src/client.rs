@@ -390,6 +390,15 @@ impl ModelClient {
         }
     }
 
+    pub fn mark_artesia_one_off(&self, context_id: &str, message_count: usize) {
+        if self.state.enable_artesia
+            && let Err(e) = artesia_client::ArtesiaClient::local()
+                .mark_all_one_off(context_id, message_count)
+        {
+            warn!("Artesia mark_one_off failed: {e}");
+        }
+    }
+
     pub(crate) fn auth_manager(&self) -> Option<Arc<AuthManager>> {
         self.state.provider.auth_manager()
     }

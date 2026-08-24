@@ -504,7 +504,7 @@ impl AgentControl {
             forked_rollout_items.push(RolloutItem::ResponseItem(subagent_usage_hint_message));
         }
 
-        state
+        let new_thread = state
             .fork_thread_with_source(
                 config.clone(),
                 InitialHistory::Forked(forked_rollout_items),
@@ -517,7 +517,16 @@ impl AgentControl {
                 inherited_exec_policy,
                 options.environments.clone(),
             )
-            .await
+            .await?;
+
+        if let Some(parent_thread) = parent_thread {
+            let child_session = &new_thread.thread.codex.session;
+            child_session
+                .mark_artesia_fork_from(&parent_thread.codex.session)
+                .await;
+        }
+
+        Ok(new_thread)
     }
 
     /// Resume an existing agent thread from a recorded rollout file.
