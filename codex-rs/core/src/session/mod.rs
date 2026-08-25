@@ -2974,26 +2974,8 @@ impl Session {
         }
     }
 
-    /// Sync virtual prefix (base instructions + tool descriptions) to Artesia.
-    /// Called once on the first turn to inform ContextCake about implicit prefix messages.
-    pub(crate) async fn sync_artesia_virtual_prefix(
-        &self,
-        instructions: &str,
-        tools_description: &str,
-    ) {
-        let mut state = self.state.lock().await;
-        state.history.sync_virtual_prefix(instructions, tools_description);
-    }
-
     pub(crate) async fn set_artesia_one_off(&self) {
         self.state.lock().await.history.set_one_off();
-    }
-
-    /// Explicitly suspend the Artesia context, releasing KV Cache resources immediately.
-    /// Called when the session is logically done (e.g. sub-agent turn completes).
-    pub(crate) async fn suspend_artesia(&self) {
-        let mut state = self.state.lock().await;
-        state.history.suspend();
     }
 
     pub(crate) async fn reference_context_item(&self) -> Option<TurnContextItem> {

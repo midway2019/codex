@@ -419,7 +419,7 @@ pub(crate) async fn run_turn(
 
     // Suspend Artesia context at end of turn loop — KV Cache is no longer needed
     // since no more LLM requests will be made for this session.
-    sess.suspend_artesia().await;
+    sess.state.lock().await.history.suspend();
 
     last_agent_message
 }
@@ -1010,7 +1010,8 @@ async fn run_sampling_request(
             .map(|t| t.name().to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        sess.sync_artesia_virtual_prefix(&base_instructions.text, &tools_desc).await;
+        let mut state = sess.state.lock().await;
+        state.history.sync_virtual_prefix(&base_instructions.text, &tools_desc);
     }
 
     sess.state.lock().await.history.mark_current_one_off();
